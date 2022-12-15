@@ -1,0 +1,9 @@
+Forbidden items:
+----------------
+photons
+molten lava
+infinite loop
+escape pod
+giant electromagnet
+
+Security checkpoint: (2,-1)
