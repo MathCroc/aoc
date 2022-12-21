@@ -38,10 +38,10 @@ Problem   | Difficulty    | Rating    | Runtime (ms)
 18.2      | ***           | ***       | 0.40
 19.1      | *****         | ****      | 15989  !
 19.2      | *****         | ****      | 236688 !
-20.1      |               |           |
-20.2      |               |           |
-21.1      |               |           |
-21.2      |               |           |
+20.1      | **            | **        | 13     !
+20.2      | ***           | ***       | 26     !
+21.1      | **            | ***       | 0.35
+21.2      | ***+          | ****      | 0.38
 22.1      |               |           |
 22.2      |               |           |
 23.1      |               |           |
@@ -52,18 +52,18 @@ Problem   | Difficulty    | Rating    | Runtime (ms)
 
 ! = not included in total time
 
-Total time: 7.60 ms
+Total time: 8.33 ms
 
 Best problems:
 1. Day 15: Beacon Exclusion Zone
 2. Day 16: Proboscidea Volcanium
 3. Day 17: Pyroclastic Flow
-4. Day 19: Not Enough Minerals
-5. Day 7: No Space Left On Device
+4. Day 21: Monkey Math
+5. Day 19: Not Enough Minerals
 
 Most difficult problems:
 1. Day 16: Proboscidea Volcanium
 2. Day 19: Not Enough Minerals
 3. Day 15: Beacon Exclusion Zone
 4. Day 17: Pyroclastic Flow
-5. Day 13: Distress Signal
+5. Day 21: Monkey Math
