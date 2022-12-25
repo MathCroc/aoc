@@ -44,22 +44,22 @@ Problem   | Difficulty    | Rating    | Runtime (ms)
 21.2      | ***+          | ****      | 0.38
 22.1      | **            | **        | 0.15
 22.2      | ****          | ****      | 0.18
-23.1      |               |           |
-23.2      |               |           |
-24.1      |               |           |
-24.2      |               |           |
-25.1      |               |           |
+23.1      | ***           | ***       | 7      !
+23.2      | ***           | ***       | 550    !
+24.1      | ***+          | ****      | 6      !
+24.2      | ***+          | ****      | 15     !
+25.1      | ***           | ****      | 0.05
 
 ! = not included in total time
 
-Total time: 8.66 ms
+Total time: 8.71 ms
 
 Best problems:
 1. Day 15: Beacon Exclusion Zone
 2. Day 16: Proboscidea Volcanium
-3. Day 17: Pyroclastic Flow
-4. Day 21: Monkey Math
-5. Day 22: Monkey Map
+3. Day 24: Blizzard Basin
+4. Day 17: Pyroclastic Flow
+5. Day 21: Monkey Math
 
 Most difficult problems:
 1. Day 16: Proboscidea Volcanium
