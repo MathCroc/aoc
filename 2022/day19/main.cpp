@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstring>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <numeric>
@@ -23,6 +24,11 @@ struct Blueprint
     int id;
     std::array<Cost, 4> costs;
 };
+
+int ceil(int val, int div)
+{
+    return (val + div - 1) / div;
+}
 
 const std::vector<Blueprint> blueprints{
     Blueprint{ .id = 1, .costs = { { { 3, 0, 0 }, { 4, 0, 0 }, { 4, 18, 0 }, { 3, 0, 13 } } } },
@@ -57,20 +63,6 @@ const std::vector<Blueprint> blueprints{
     Blueprint{ .id = 30, .costs = { { { 4, 0, 0 }, { 3, 0, 0 }, { 3, 20, 0 }, { 2, 0, 19 } } } }
 };
 
-/*
-Blueprint 1:
-  Each ore robot costs 4 ore.
-  Each clay robot costs 2 ore.
-  Each obsidian robot costs 3 ore and 14 clay.
-  Each geode robot costs 2 ore and 7 obsidian.
-
-Blueprint 2:
-  Each ore robot costs 2 ore.
-  Each clay robot costs 3 ore.
-  Each obsidian robot costs 3 ore and 8 clay.
-  Each geode robot costs 3 ore and 12 obsidian.
-  */
-
 // const std::vector<Blueprint> blueprints{
 //     Blueprint{ .id = 1, .costs = { { { 4, 0, 0 }, { 2, 0, 0 }, { 3, 14, 0 }, { 2, 0, 7 } } } },
 //     Blueprint{ .id = 2, .costs = { { { 2, 0, 0 }, { 3, 0, 0 }, { 3, 8, 0 }, { 3, 0, 12 } } } }
@@ -82,54 +74,43 @@ struct State
     std::array<uint8_t, 4> materials;
 };
 
-uint64_t hash(State s)
+int calculateTimeNeeded(const Blueprint& blueprint, const State& s, int index)
 {
-    uint64_t h = 0;
-    std::memcpy(&h, &s, sizeof(State));
-    return h;
+    int time = 0;
+    bool possible = true;
+    for (unsigned j = 0; j < blueprint.costs[index].size(); ++j)
+    {
+        if (blueprint.costs[index][j] == 0)
+            continue;
+
+        if (s.robots[j] == 0)
+        {
+            possible = false;
+            break;
+        }
+
+        int materialNeeded = blueprint.costs[index][j] - s.materials[j];
+        time = std::max(time, ceil(materialNeeded, s.robots[j]));
+    }
+    return possible ? time + 1 : -1;
 }
 
-State nextState(const State& s, const Blueprint& b, int index)
+State getNextState(const Blueprint& blueprint, const State& s, int index, int time)
 {
-    State out = s;
-
-    if (index >= 0)
+    State next = s;
+    for (unsigned j = 0; j < 4; ++j)
     {
-        for (unsigned i = 0; i < b.costs[index].size(); ++i)
+        next.materials[j] += time * s.robots[j];
+        if (j < 3)
         {
-            out.materials[i] -= b.costs[index][i];
+            next.materials[j] -= blueprint.costs[index][j];
         }
     }
-
-    for (unsigned i = 0; i < s.robots.size(); ++i)
-    {
-        out.materials[i] += s.robots[i];
-    }
-
-    if (index >= 0)
-    {
-        ++out.robots[index];
-    }
-    return out;
+    ++next.robots[index];
+    return next;
 }
 
-// State toState(uint64_t h)
-// {
-//     State s{};
-//     std::memcpy(&s, &h, sizeof(State));
-//     return s;
-// }
-
-bool canBuild(const State& s, const Cost& c)
-{
-    for (unsigned i = 0; i < c.size(); ++i)
-    {
-        if (c[i] > s.materials[i])
-            return false;
-    }
-    return true;
-}
-
+// DFS + early exit based on theoretical upper bound
 int crackGeodes(const Blueprint& blueprint, int steps)
 {
     std::array<uint8_t, 4> limits{};
@@ -141,52 +122,40 @@ int crackGeodes(const Blueprint& blueprint, int steps)
         limits[2] = std::max<uint8_t>(limits[2], c[2]);
     }
 
-    std::unordered_set<uint64_t> visited;
-    std::vector<State> queue{ { { 1, 0, 0, 0 }, { 0, 0, 0, 0 } } };
-    visited.insert(hash(queue.front()));
-    for (int step = 0; step < steps; ++step)
-    {
-        std::vector<State> next;
-        for (auto s : queue)
-        {
-            int count = 0;
-            for (int i = 0; i < 4; ++i)
-            {
-                if (canBuild(s, blueprint.costs[i]))
-                {
-                    ++count;
-                    if (s.robots[i] >= limits[i])
-                        continue;
-
-                    auto ns = nextState(s, blueprint, i);
-                    auto h = hash(ns);
-                    if (visited.find(h) != visited.end())
-                        continue;
-
-                    visited.insert(h);
-                    next.push_back(ns);
-                }
-            }
-
-            if (count >= 4)
-                continue;
-
-            auto noBuild = nextState(s, blueprint, -1);
-            auto h = hash(noBuild);
-            if (visited.find(h) != visited.end())
-                continue;
-
-            visited.insert(h);
-            next.push_back(noBuild);
-        }
-        queue = std::move(next);
-        std::cout << step << std::endl;
-    }
-
+    std::vector<std::pair<State, int>> stack{ { { { 1, 0, 0, 0 }, { 0, 0, 0, 0 } }, steps } };
     int maxGeodes = 0;
-    for (const auto& s : queue)
+    while (not stack.empty())
     {
-        maxGeodes = std::max<int>(maxGeodes, s.materials.back());
+        auto p = stack.back();
+        auto [s, stepsRemaining] = p;
+        stack.pop_back();
+
+        // Update the max number of geodes assuming no further robots are made
+        maxGeodes = std::max<int>(maxGeodes, s.materials.back() + s.robots.back() * stepsRemaining);
+
+        if (stepsRemaining <= 0)
+            continue;
+
+        // Upper bound for cracked geodes (arithmetic progression)
+        int maxPossible = s.materials.back() +
+            stepsRemaining * (2 * s.robots.back() + stepsRemaining - 1) / 2;
+        if (maxPossible <= maxGeodes)
+            continue;
+
+        // Generate next states by assuming the ith robot is the next one to be built
+        for (int i = 0; i < 4; ++i)
+        {
+            if (s.robots[i] >= limits[i])
+                continue;
+
+            int time = calculateTimeNeeded(blueprint, s, i);
+            if (time >= stepsRemaining or time < 0)
+                continue;
+
+            auto next = getNextState(blueprint, s, i, time);
+            int sr = stepsRemaining - time;
+            stack.push_back({ next, sr });
+        }
     }
     return maxGeodes;
 }
@@ -196,7 +165,6 @@ std::string runSolution1(std::ifstream& ifs)
     long long totalQuality = 0;
     for (const auto& b : blueprints)
     {
-        std::cout << "Blueprint: " << b.id << std::endl;
         totalQuality += (long long)b.id * crackGeodes(b, 24);
     }
 
@@ -208,7 +176,6 @@ std::string runSolution2(std::ifstream& ifs)
     long long totalQuality = 1;
     for (int i = 0; i < 3; ++i)
     {
-        std::cout << "Blueprint: " << blueprints[i].id << std::endl;
         totalQuality *= crackGeodes(blueprints[i], 32);
     }
 
@@ -235,7 +202,7 @@ int main(int argc, char** argv)
     const auto end = high_resolution_clock::now();
 
     std::cout << "Solution (part " << part << "): " << output << std::endl;
-    std::cout << "Elapsed time: " << duration_cast<milliseconds>(end - start).count() << "ms"
-              << std::endl;
+    std::cout << "Elapsed time: " << std::setprecision(3)
+              << duration_cast<microseconds>(end - start).count() / 1000.0 << "ms" << std::endl;
     return 0;
 }
