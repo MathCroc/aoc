@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <numeric>
@@ -106,6 +107,77 @@ int bfs(const Valves& valves, int start, int end)
     return steps;
 }
 
+std::vector<int> releaseUpperBounds(std::vector<int> flows)
+{
+    std::sort(flows.begin(), flows.end(), [](int a, int b) { return a > b; });
+    std::vector<int> bounds(31, 0);
+    auto flowIt = flows.begin();
+    int totalFlow = 0;
+    for (int minutesLeft = 3; minutesLeft <= 30; ++minutesLeft)
+    {
+        if (flowIt == flows.end() or minutesLeft % 2 == 0)
+        {
+            bounds[minutesLeft] = bounds[minutesLeft - 1] + totalFlow;
+        }
+        else
+        {
+            bounds[minutesLeft] = bounds[minutesLeft - 1] + totalFlow + (*flowIt);
+            totalFlow += (*flowIt);
+            ++flowIt;
+        }
+    }
+    return bounds;
+}
+
+struct Status
+{
+    int id;
+    int minutesLeft;
+    int totalReleased;
+    uint32_t open;
+};
+
+using Graph = std::vector<std::vector<int>>;
+
+[[maybe_unused]] void dfs(const Graph& graph,
+                          const std::vector<int>& flows,
+                          const std::vector<int>& bounds,
+                          Status s,
+                          int& maxReleased)
+{
+    // std::cout << "Visiting " << s.id << ", time left: " << s.minutesLeft
+    //           << ", total released: " << s.totalReleased << std::endl;
+    // if (s.totalReleased > maxReleased)
+    //     std::cout << "New max: " << s.totalReleased << std::endl;
+
+    s.totalReleased += s.minutesLeft * flows[s.id];
+    maxReleased = std::max(maxReleased, s.totalReleased);
+    if (s.minutesLeft <= 0)
+    {
+        return;
+    }
+
+    s.open |= (1u << s.id);
+    for (int i = 1; i < (int)graph.size(); ++i)
+    {
+        if (s.open & (1u << i))
+            continue;
+
+        int timeLeft = s.minutesLeft - graph[s.id][i];
+        int maxPossible = s.totalReleased + std::max(0, timeLeft) * flows[i] + bounds[timeLeft];
+        if (maxPossible <= maxReleased)
+        {
+            // std::cout << "Skipping " << i << " (max possible " << maxPossible << ", max so far "
+            //           << maxReleased << ")" << std::endl;
+            continue;
+        }
+
+        dfs(graph, flows, bounds, { i, timeLeft, s.totalReleased, s.open }, maxReleased);
+    }
+
+    // std::cout << "Exiting " << s.id << std::endl;
+}
+
 struct QueueElem
 {
     int id;
@@ -140,48 +212,58 @@ std::string runSolution1(std::ifstream& ifs)
         }
     }
 
-    std::unordered_map<uint64_t, int> visited;
-    std::vector<QueueElem> queue{ { 0, 0, 0, 0b1 } };
-    for (int step = 0; step < 30; ++step)
-    {
-        std::vector<QueueElem> next;
-        for (auto q : queue)
-        {
-            --q.stepsRemaining;
-            if (q.stepsRemaining > 0)
-            {
-                next.push_back(q);
-            }
-            else
-            {
-                uint64_t h = ((uint64_t)q.open << 32) | q.id;
-                auto it = visited.find(h);
-                if (it != visited.end() and it->second >= q.totalReleased)
-                    continue;
-
-                visited.insert({ h, q.totalReleased });
-
-                const int totalReleased = q.totalReleased + flows[q.id] * (30 - step);
-                const uint32_t open = q.open | (1u << q.id);
-                for (int i = 1; i < (int)times.size(); ++i)
-                {
-                    if (open & (1u << i))
-                        continue;
-
-                    next.push_back({ i, times[q.id][i], totalReleased, open });
-                }
-            }
-        }
-        queue = std::move(next);
-    }
+    const auto bounds = releaseUpperBounds(flows);
+    // for (auto v : bounds)
+    // {
+    //     std::cout << v << std::endl;
+    // }
 
     int maxReleased = 0;
-    for (const auto& q : queue)
-    {
-        maxReleased = std::max(maxReleased, q.totalReleased);
-    }
-
+    dfs(times, flows, bounds, { 0, 30, 0, 0b1 }, maxReleased);
     return std::to_string(maxReleased);
+
+    // std::unordered_map<uint64_t, int> visited;
+    // std::vector<QueueElem> queue{ { 0, 0, 0, 0b1 } };
+    // for (int step = 0; step < 30; ++step)
+    // {
+    //     std::vector<QueueElem> next;
+    //     for (auto q : queue)
+    //     {
+    //         --q.stepsRemaining;
+    //         if (q.stepsRemaining > 0)
+    //         {
+    //             next.push_back(q);
+    //         }
+    //         else
+    //         {
+    //             uint64_t h = ((uint64_t)q.open << 32) | q.id;
+    //             auto it = visited.find(h);
+    //             if (it != visited.end() and it->second >= q.totalReleased)
+    //                 continue;
+
+    //             visited.insert({ h, q.totalReleased });
+
+    //             const int totalReleased = q.totalReleased + flows[q.id] * (30 - step);
+    //             const uint32_t open = q.open | (1u << q.id);
+    //             for (int i = 1; i < (int)times.size(); ++i)
+    //             {
+    //                 if (open & (1u << i))
+    //                     continue;
+
+    //                 next.push_back({ i, times[q.id][i], totalReleased, open });
+    //             }
+    //         }
+    //     }
+    //     queue = std::move(next);
+    // }
+
+    // int maxReleased = 0;
+    // for (const auto& q : queue)
+    // {
+    //     maxReleased = std::max(maxReleased, q.totalReleased);
+    // }
+
+    // return std::to_string(maxReleased);
 }
 
 /* ----- Old implementation ----- */
@@ -360,7 +442,7 @@ int main(int argc, char** argv)
     const auto end = high_resolution_clock::now();
 
     std::cout << "Solution (part " << part << "): " << output << std::endl;
-    std::cout << "Elapsed time: " << duration_cast<milliseconds>(end - start).count() << "ms"
-              << std::endl;
+    std::cout << "Elapsed time: " << std::setprecision(3)
+              << duration_cast<microseconds>(end - start).count() / 1000.0 << "ms" << std::endl;
     return 0;
 }
