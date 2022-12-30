@@ -22,6 +22,7 @@ struct Valve
 };
 
 using Valves = std::unordered_map<int, Valve>;
+using Graph = std::vector<std::vector<int>>;
 
 int getIndex(std::unordered_map<std::string, int>& mapping,
              const std::string& name,
@@ -70,41 +71,66 @@ Valves parse(std::ifstream& ifs)
     return valves;
 }
 
-int bfs(const Valves& valves, int start, int end)
+std::unordered_map<int, int> createBitMapping(const Valves& valves)
 {
-    std::unordered_set<int> visited;
-    visited.insert(start);
-    std::vector<int> queue;
-    queue.push_back(start);
-    int steps = 0;
-    while (not queue.empty())
+    std::unordered_map<int, int> bitMap;
+    bitMap.insert({ 0, 0 });
+    int bitIndex = 1;
+    for (const auto& [id, v] : valves)
     {
-        if (visited.find(end) != visited.end())
+        if (v.flow > 0)
         {
-            break;
+            bitMap[id] = bitIndex++;
         }
+    }
+    return bitMap;
+}
 
-        std::vector<int> next;
-        for (int v : queue)
+std::vector<int> getFlows(const Valves& valves, const std::unordered_map<int, int>& bitMap)
+{
+    std::vector<int> flows(bitMap.size(), 0);
+    for (auto [id0, index0] : bitMap)
+    {
+        flows[index0] = valves.at(id0).flow;
+    }
+    return flows;
+}
+
+Graph bfs(const Valves& valves, const std::unordered_map<int, int>& bitMap)
+{
+    Graph graph(bitMap.size(), std::vector<int>(bitMap.size()));
+    for (auto [start, index] : bitMap)
+    {
+        std::unordered_set<int> visited;
+        visited.insert(start);
+        std::vector<int> queue;
+        queue.push_back(start);
+        int steps = 0;
+        while (not queue.empty())
         {
-            for (int n : valves.at(v).tunnels)
+            std::vector<int> next;
+            for (int v : queue)
             {
-                if (visited.find(n) != visited.end())
-                    continue;
+                auto bitIt = bitMap.find(v);
+                if (bitIt != bitMap.end())
+                {
+                    graph[index][bitIt->second] = steps + 1;
+                }
 
-                next.push_back(n);
-                visited.insert(n);
+                for (int n : valves.at(v).tunnels)
+                {
+                    if (visited.find(n) != visited.end())
+                        continue;
+
+                    next.push_back(n);
+                    visited.insert(n);
+                }
             }
+            queue = std::move(next);
+            ++steps;
         }
-        queue = std::move(next);
-        ++steps;
     }
-
-    if (queue.empty())
-    {
-        throw 1;
-    }
-    return steps;
+    return graph;
 }
 
 std::vector<int> releaseUpperBounds(std::vector<int> flows)
@@ -137,288 +163,143 @@ struct Status
     uint32_t open;
 };
 
-using Graph = std::vector<std::vector<int>>;
-
-[[maybe_unused]] void dfs(const Graph& graph,
-                          const std::vector<int>& flows,
-                          const std::vector<int>& bounds,
-                          Status s,
-                          int& maxReleased)
+int dfs(const Graph& graph,
+        const std::vector<int>& flows,
+        const std::vector<int>& bounds,
+        Status init)
 {
-    // std::cout << "Visiting " << s.id << ", time left: " << s.minutesLeft
-    //           << ", total released: " << s.totalReleased << std::endl;
-    // if (s.totalReleased > maxReleased)
-    //     std::cout << "New max: " << s.totalReleased << std::endl;
-
-    s.totalReleased += s.minutesLeft * flows[s.id];
-    maxReleased = std::max(maxReleased, s.totalReleased);
-    if (s.minutesLeft <= 0)
+    int maxReleased = 0;
+    std::vector<Status> stack;
+    stack.push_back(init);
+    while (not stack.empty())
     {
-        return;
-    }
+        auto s = stack.back();
+        stack.pop_back();
 
-    s.open |= (1u << s.id);
-    for (int i = 1; i < (int)graph.size(); ++i)
-    {
-        if (s.open & (1u << i))
-            continue;
-
-        int timeLeft = s.minutesLeft - graph[s.id][i];
-        int maxPossible = s.totalReleased + std::max(0, timeLeft) * flows[i] + bounds[timeLeft];
-        if (maxPossible <= maxReleased)
+        s.totalReleased += s.minutesLeft * flows[s.id];
+        maxReleased = std::max(maxReleased, s.totalReleased);
+        if (s.minutesLeft <= 0)
         {
-            // std::cout << "Skipping " << i << " (max possible " << maxPossible << ", max so far "
-            //           << maxReleased << ")" << std::endl;
             continue;
         }
 
-        dfs(graph, flows, bounds, { i, timeLeft, s.totalReleased, s.open }, maxReleased);
-    }
+        s.open |= (1u << s.id);
+        for (int i = 1; i < (int)graph.size(); ++i)
+        {
+            if (s.open & (1u << i))
+                continue;
 
-    // std::cout << "Exiting " << s.id << std::endl;
+            int timeLeft = s.minutesLeft - graph[s.id][i];
+            int maxPossible = s.totalReleased + std::max(0, timeLeft) * flows[i] + bounds[timeLeft];
+            if (maxPossible <= maxReleased)
+                continue;
+
+            stack.push_back({ i, timeLeft, s.totalReleased, s.open });
+        }
+    }
+    return maxReleased;
 }
 
-struct QueueElem
-{
-    int id;
-    int stepsRemaining;
-    int totalReleased;
-    uint32_t open;
-};
-
+// Idea:
+// Reduce valves and tunnels to graph of non-zero flow valves (+ the starting point).
+// Weight of each edge is the time it takes to move from A to B and open the valve at B
+// (this can be found using BFS starting at each node). For this new graph, deploy
+// DFS (or rather heuristic best-first-search) with early exiting using upper bound
+// for maximum possible pressure released.
 std::string runSolution1(std::ifstream& ifs)
 {
     const auto valves = parse(ifs);
-
-    std::unordered_map<int, int> bitMap;
-    bitMap.insert({ 0, 0 });
-    int bitIndex = 1;
-    for (const auto& [id, v] : valves)
-    {
-        if (v.flow > 0)
-        {
-            bitMap[id] = bitIndex++;
-        }
-    }
-
-    std::vector<std::vector<int>> times(bitMap.size(), std::vector<int>(bitMap.size()));
-    std::vector<int> flows(bitMap.size(), 0);
-    for (auto [id0, index0] : bitMap)
-    {
-        flows[index0] = valves.at(id0).flow;
-        for (auto [id1, index1] : bitMap)
-        {
-            times[index0][index1] = bfs(valves, id0, id1) + 1;
-        }
-    }
-
+    const auto bitMap = createBitMapping(valves);
+    const auto flows = getFlows(valves, bitMap);
+    const auto times = bfs(valves, bitMap);
     const auto bounds = releaseUpperBounds(flows);
-    // for (auto v : bounds)
-    // {
-    //     std::cout << v << std::endl;
-    // }
-
-    int maxReleased = 0;
-    dfs(times, flows, bounds, { 0, 30, 0, 0b1 }, maxReleased);
-    return std::to_string(maxReleased);
-
-    // std::unordered_map<uint64_t, int> visited;
-    // std::vector<QueueElem> queue{ { 0, 0, 0, 0b1 } };
-    // for (int step = 0; step < 30; ++step)
-    // {
-    //     std::vector<QueueElem> next;
-    //     for (auto q : queue)
-    //     {
-    //         --q.stepsRemaining;
-    //         if (q.stepsRemaining > 0)
-    //         {
-    //             next.push_back(q);
-    //         }
-    //         else
-    //         {
-    //             uint64_t h = ((uint64_t)q.open << 32) | q.id;
-    //             auto it = visited.find(h);
-    //             if (it != visited.end() and it->second >= q.totalReleased)
-    //                 continue;
-
-    //             visited.insert({ h, q.totalReleased });
-
-    //             const int totalReleased = q.totalReleased + flows[q.id] * (30 - step);
-    //             const uint32_t open = q.open | (1u << q.id);
-    //             for (int i = 1; i < (int)times.size(); ++i)
-    //             {
-    //                 if (open & (1u << i))
-    //                     continue;
-
-    //                 next.push_back({ i, times[q.id][i], totalReleased, open });
-    //             }
-    //         }
-    //     }
-    //     queue = std::move(next);
-    // }
-
-    // int maxReleased = 0;
-    // for (const auto& q : queue)
-    // {
-    //     maxReleased = std::max(maxReleased, q.totalReleased);
-    // }
-
-    // return std::to_string(maxReleased);
-}
-
-/* ----- Old implementation ----- */
-
-struct Valve2
-{
-    int flow;
-    std::vector<std::string> tunnels;
-};
-
-using Valves2 = std::unordered_map<std::string, Valve2>;
-
-Valves2 parse2(std::ifstream& ifs)
-{
-    Valves2 valves;
-    while (ifs.good())
-    {
-        std::string line;
-        std::getline(ifs, line);
-        if (line.empty())
-            break;
-
-        Valve2 v;
-        std::string name;
-
-        std::stringstream ss(line);
-        ss >> name;
-        ss >> v.flow;
-        while (ss.good())
-        {
-            std::string s;
-            ss >> s;
-            if (s.empty())
-                break;
-
-            v.tunnels.push_back(s);
-        }
-        valves.insert({ name, v });
-    }
-    return valves;
+    return std::to_string(dfs(times, flows, bounds, { 0, 30, 0, 0b1 }));
 }
 
 struct State
 {
-    uint16_t valve0;
-    uint16_t valve1;
-    uint32_t open;
-    int totalReleased;
+    int id;
+    int minutesLeft;
 };
 
-uint64_t hash(const State& state)
+struct Status2
 {
-    uint64_t a = state.valve0;
-    uint64_t b = state.valve1;
-    if (b < a)
+    std::array<State, 2> states;
+    int totalReleased;
+    uint32_t open;
+};
+
+int dfs2(const Graph& graph,
+         const std::vector<int>& flows,
+         const std::vector<int>& bounds,
+         Status2 init)
+{
+    int maxReleased = 0;
+    std::vector<Status2> stack;
+    stack.push_back(init);
+    while (not stack.empty())
     {
-        std::swap(a, b);
+        auto s = stack.back();
+        stack.pop_back();
+
+        int cur = 0;
+        if (s.states[1].minutesLeft > s.states[0].minutesLeft)
+        {
+            cur = 1;
+        }
+
+        s.totalReleased += s.states[cur].minutesLeft * flows[s.states[cur].id];
+
+        maxReleased = std::max(maxReleased, s.totalReleased);
+        if (s.states[cur].minutesLeft <= 0)
+        {
+            continue;
+        }
+
+        // Upper bounds for total pressure released
+        // There is at most 2 minutes that the valve opened by the other opener has time
+        // to affect before the pre-computed bounds handle the rest.
+        int maxPossible = s.totalReleased + bounds[std::max(0, s.states[cur].minutesLeft)] +
+            std::min(2, s.states[cur ^ 1].minutesLeft) * flows[s.states[cur ^ 1].id] +
+            bounds[std::max(0, s.states[cur ^ 1].minutesLeft)];
+
+        if (maxPossible <= maxReleased)
+            continue;
+
+        int count = 0;
+        for (int i = 1; i < (int)graph.size(); ++i)
+        {
+            if (s.open & (1u << i))
+                continue;
+
+            auto next = s;
+            next.open |= 1u << i;
+            next.states[cur].id = i;
+            next.states[cur].minutesLeft -= graph[s.states[cur].id][i];
+            stack.push_back(next);
+            ++count;
+        }
+
+        if (count == 0 and s.states[cur ^ 1].id != 0)
+        {
+            auto next = s;
+            next.states[cur].id = 0;
+            next.states[cur].minutesLeft = 0;
+            stack.push_back(next);
+        }
     }
-
-    return ((uint64_t)state.open << 32) | (a << 16) | b;
+    return maxReleased;
 }
 
-void insertIfNeeded(std::vector<State>& next, std::unordered_map<uint64_t, int>& visited, State q)
-{
-    uint64_t h = hash(q);
-    auto it = visited.find(h);
-    if (it != visited.end() and q.totalReleased <= it->second)
-        return;
-
-    visited[h] = q.totalReleased;
-    next.push_back(q);
-}
-
+// Same as part 1, but now keeping track of 2 openers. The one with the most time is advanced.
 std::string runSolution2(std::ifstream& ifs)
 {
-    auto valves = parse2(ifs);
-
-    std::unordered_map<std::string, uint16_t> indexMap;
-    std::unordered_map<std::string, int> bitMap;
-    std::vector<std::string> names;
-    int bitIndex = 0;
-    uint16_t valveIndex = 0;
-    for (auto& [name, v] : valves)
-    {
-        v.tunnels.push_back("");
-
-        names.push_back(name);
-        indexMap[name] = valveIndex++;
-        if (v.flow > 0)
-        {
-            bitMap[name] = bitIndex++;
-        }
-    }
-
-    std::unordered_map<uint64_t, int> visited;
-    std::vector<State> queue{ { indexMap.at("AA"), indexMap.at("AA"), 0, 0 } };
-    for (int step = 4; step < 30; ++step)
-    {
-        std::vector<State> next;
-        for (const auto& q : queue)
-        {
-            const auto bitIt0 = bitMap.find(names[q.valve0]);
-            const bool canOpen0 = bitIt0 != bitMap.end() and (q.open & (1u << bitIt0->second)) == 0;
-            const auto bitIt1 = bitMap.find(names[q.valve1]);
-            const bool canOpen1 = q.valve0 != q.valve1 and bitIt1 != bitMap.end() and
-                (q.open & (1u << bitIt1->second)) == 0;
-
-            for (const auto& tunnel0 : valves.at(names[q.valve0]).tunnels)
-            {
-                for (const auto& tunnel1 : valves.at(names[q.valve1]).tunnels)
-                {
-                    auto v = q;
-                    if (tunnel0 == "" and canOpen0)
-                    {
-                        v.totalReleased += valves.at(names[q.valve0]).flow * (29 - step);
-                        v.open |= 1u << bitIt0->second;
-                    }
-                    else if (tunnel0 != "")
-                    {
-                        v.valve0 = indexMap.at(tunnel0);
-                    }
-                    else
-                    {
-                        continue;
-                    }
-
-                    if (tunnel1 == "" and canOpen1)
-                    {
-                        v.totalReleased += valves.at(names[q.valve1]).flow * (29 - step);
-                        v.open |= 1u << bitIt1->second;
-                    }
-                    else if (tunnel1 != "")
-                    {
-                        v.valve1 = indexMap.at(tunnel1);
-                    }
-                    else
-                    {
-                        continue;
-                    }
-
-                    insertIfNeeded(next, visited, v);
-                }
-            }
-        }
-
-        std::cout << "Step: " << step << std::endl;
-        queue = std::move(next);
-    }
-
-    int maxReleased = 0;
-    for (const auto& [h, totalReleased] : visited)
-    {
-        maxReleased = std::max(maxReleased, totalReleased);
-    }
-
+    const auto valves = parse(ifs);
+    const auto bitMap = createBitMapping(valves);
+    const auto flows = getFlows(valves, bitMap);
+    const auto times = bfs(valves, bitMap);
+    const auto bounds = releaseUpperBounds(flows);
+    int maxReleased = dfs2(times, flows, bounds, { { { { 0, 26 }, { 0, 26 } } }, 0, 0b1 });
     return std::to_string(maxReleased);
 }
 } // namespace

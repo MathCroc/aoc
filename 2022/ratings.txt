@@ -30,8 +30,8 @@ Problem   | Difficulty    | Rating    | Runtime (ms)
 14.2      | **            | ***       | 0.23
 15.1      | ***           | ***       | 0.03
 15.2      | ****          | *****     | 0.04
-16.1      | *****         | *****     | 58     !
-16.2      | *****         | *****     | 774975 !
+16.1      | *****         | *****     | 0.28
+16.2      | *****         | *****     | 30     !
 17.1      | ***           | ***       | 0.46
 17.2      | ****          | ****      | 0.80
 18.1      | **            | **        | 0.27
@@ -52,7 +52,7 @@ Problem   | Difficulty    | Rating    | Runtime (ms)
 
 ! = not included in total time
 
-Total time: 8.71 ms
+Total time: 8.99 ms
 
 Best problems:
 1. Day 15: Beacon Exclusion Zone
