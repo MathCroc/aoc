@@ -42,15 +42,16 @@ std::string runSolution1(std::ifstream& ifs)
     return std::to_string(count);
 }
 
+const std::vector<std::string> words{ "one", "two",   "three", "four", "five",
+                                      "six", "seven", "eight", "nine" };
+
 int findValue(const std::string& str)
 {
-    std::vector<std::string> words{ "one", "two",   "three", "four", "five",
-                                    "six", "seven", "eight", "nine" };
-
     auto is_digit = [](auto c) { return std::isdigit(c) != 0; };
     auto it0 = std::find_if(str.begin(), str.end(), is_digit);
-    auto it1 = std::find_if(str.rbegin(), str.rend(), is_digit);
     size_t pos0 = std::distance(str.begin(), it0);
+
+    auto it1 = std::find_if(str.rbegin(), str.rend() - pos0, is_digit);
     size_t pos1 = str.size() - std::distance(str.rbegin(), it1);
 
     int val0 = toInt(*it0);
@@ -81,9 +82,6 @@ int findValue(const std::string& str)
 
 std::string runSolution2(std::ifstream& ifs)
 {
-    std::vector<std::string> words{ "one", "two",   "three", "four", "five",
-                                    "six", "seven", "eight", "nine" };
-
     int count = 0;
     while (ifs.good())
     {
