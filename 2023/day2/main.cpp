@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -14,62 +15,130 @@
 #include <vector>
 
 namespace {
-std::vector<std::pair<int, int>> parse(std::ifstream& ifs)
+struct Reveal
 {
-    std::vector<std::pair<int, int>> out;
+    int red;
+    int green;
+    int blue;
+};
+
+using Game = std::vector<Reveal>;
+
+std::vector<Game> parse(std::ifstream& ifs)
+{
+    std::vector<Game> out;
     while (ifs.good())
     {
-        char a, b;
-        ifs >> a >> b;
-        out.push_back({ a - 'A', b - 'X' });
+        std::string line;
+        std::getline(ifs, line);
+        if (line.empty())
+            continue;
+
+        line.push_back(';');
+
+        Game game;
+        auto pos = line.find(":") + 2;
+        auto end = line.find(";", pos);
+        while (end != std::string::npos)
+        {
+            auto nextEnd = line.find(";", end + 1);
+
+            Reveal r{};
+            while (pos < end)
+            {
+                int val{};
+                auto [ptr, er] = std::from_chars(line.data() + pos, line.data() + pos + 4, val);
+                (void)er;
+
+                switch (ptr[1])
+                {
+                    case 'r':
+                        r.red = val;
+                        break;
+                    case 'g':
+                        r.green = val;
+                        break;
+                    case 'b':
+                        r.blue = val;
+                        break;
+                    default:
+                        std::cout << pos << " " << end << " " << val << " " << ptr[1] << std::endl;
+                        throw 1;
+                }
+
+                auto nextPos = line.find(",", pos + 1);
+                pos = (nextPos == std::string::npos or nextPos > end) ? end + 2 : nextPos + 2;
+            }
+
+            game.push_back(r);
+            end = nextEnd;
+        }
+
+        out.push_back(std::move(game));
     }
-    out.pop_back();
+
     return out;
 }
 
 std::string runSolution1(std::ifstream& ifs)
 {
-    const auto games = parse(ifs);
-    int tot = 0;
-    for (const auto& [a, b] : games)
+    constexpr Reveal lims{ .red = 12, .green = 13, .blue = 14 };
+
+    auto games = parse(ifs);
+    int count = 0;
+    for (int i = 0; i < (int)games.size(); ++i)
     {
-        int score = b + 1;
-        if (b == ((a + 1) % 3))
+        bool possible = true;
+        const auto& g = games[i];
+        for (auto r : g)
         {
-            score += 6;
+            if (r.red > lims.red)
+            {
+                possible = false;
+                break;
+            }
+
+            if (r.green > lims.green)
+            {
+                possible = false;
+                break;
+            }
+
+            if (r.blue > lims.blue)
+            {
+                possible = false;
+                break;
+            }
         }
-        else if (a == b)
+
+        if (possible)
         {
-            score += 3;
+            count += i + 1;
         }
-        tot += score;
     }
 
-    return std::to_string(tot);
+    return std::to_string(count);
 }
 
 std::string runSolution2(std::ifstream& ifs)
 {
-    const auto games = parse(ifs);
-    int tot = 0;
-    for (const auto& [a, b] : games)
+    auto games = parse(ifs);
+    int count = 0;
+    for (int i = 0; i < (int)games.size(); ++i)
     {
-        int score = 3 * b;
-        if (b == 0)
+        Reveal min{};
+        const auto& g = games[i];
+        for (auto r : g)
         {
-            score += ((a + 2) % 3) + 1;
+            min.red = std::max(min.red, r.red);
+            min.green = std::max(min.green, r.green);
+            min.blue = std::max(min.blue, r.blue);
         }
-        else if (b == 1)
-        {
-            score += a + 1;
-        }
-        else
-        {
-            score += ((a + 1) % 3) + 1;
-        }
-        tot += score;
+
+        count += min.red * min.green * min.blue;
     }
-    return std::to_string(tot);
+
+    return std::to_string(count);
 }
 } // namespace
 
