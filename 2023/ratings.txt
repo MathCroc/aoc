@@ -6,8 +6,8 @@ Problem   | Difficulty    | Rating    | Runtime (ms)
  2.2      | *             | *         | 0.10
  3.1      | *             | **        | 0.30
  3.2      | *             | **        | 0.40
- 4.1      |               |           |
- 4.2      |               |           |
+ 4.1      | *             | *         | 0.50
+ 4.2      | *             | *         | 0.50
  5.1      |               |           |
  5.2      |               |           |
  6.1      |               |           |
@@ -50,7 +50,7 @@ Problem   | Difficulty    | Rating    | Runtime (ms)
 24.2      |               |           |
 25.1      |               |           |
 
-Total time: 1.4 ms
+Total time: 2.4 ms
 
 Best problems:
 1.

@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <array>
+#include <bitset>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -14,69 +15,117 @@
 #include <vector>
 
 namespace {
-struct ElfPair
-{
-    std::pair<int, int> first;
-    std::pair<int, int> second;
-};
-
-std::vector<ElfPair> parse(std::ifstream& ifs)
-{
-    std::vector<ElfPair> elves;
-    while (ifs.good())
-    {
-        ElfPair e{};
-        char ignore;
-        ifs >> e.first.first >> ignore >> e.first.second >> ignore >> e.second.first >> ignore >>
-            e.second.second;
-
-        elves.push_back(e);
-    }
-    return elves;
-}
-
-bool isContained(std::pair<int, int> a, std::pair<int, int> b)
-{
-    if (b.first < a.first)
-    {
-        return isContained(b, a);
-    }
-
-    return a.first == b.first or b.second <= a.second;
-}
-
 std::string runSolution1(std::ifstream& ifs)
 {
-    const auto elves = parse(ifs);
     int count = 0;
-    for (const auto& [a, b] : elves)
+    while (ifs.good())
     {
-        count += isContained(a, b);
+        std::string line;
+        std::getline(ifs, line);
+        if (line.empty())
+            break;
+
+        size_t pos0 = line.find(":") + 1;
+        size_t pos1 = line.find("|", pos0) + 1;
+        std::stringstream ss0(line.substr(pos0, pos1 - pos0));
+        std::stringstream ss1(line.substr(pos1));
+
+        std::vector<bool> b(100);
+        while (ss0.good())
+        {
+            int v = -1;
+            ss0 >> v;
+            if (v <= 0)
+                break;
+
+            b[v] = true;
+        }
+
+        int score = 1;
+        while (ss1.good())
+        {
+            int v = -1;
+            ss1 >> v;
+            if (v <= 0)
+                break;
+
+            if (b[v])
+            {
+                score *= 2;
+            }
+        }
+
+        score /= 2;
+        count += score;
     }
 
     return std::to_string(count);
-}
-
-bool overlaps(std::pair<int, int> a, std::pair<int, int> b)
-{
-    if (b.first < a.first)
-    {
-        return overlaps(b, a);
-    }
-
-    return a.second >= b.first;
 }
 
 std::string runSolution2(std::ifstream& ifs)
 {
-    const auto elves = parse(ifs);
-    int count = 0;
-    for (const auto& [a, b] : elves)
+    std::vector<long long> counts;
+    int k = 0;
+    while (ifs.good())
     {
-        count += overlaps(a, b);
+        std::string line;
+        std::getline(ifs, line);
+        if (line.empty())
+            break;
+
+        if (k >= (int)counts.size())
+        {
+            counts.push_back(1);
+        }
+
+        size_t pos0 = line.find(":") + 1;
+        size_t pos1 = line.find("|", pos0) + 1;
+        std::stringstream ss0(line.substr(pos0, pos1 - pos0));
+        std::stringstream ss1(line.substr(pos1));
+
+        std::vector<bool> b(100);
+        while (ss0.good())
+        {
+            int v = -1;
+            ss0 >> v;
+            if (v <= 0)
+                break;
+
+            b[v] = true;
+        }
+
+        int score = 0;
+        while (ss1.good())
+        {
+            int v = -1;
+            ss1 >> v;
+            if (v <= 0)
+                break;
+
+            if (b[v])
+            {
+                score++;
+            }
+        }
+
+        int n = counts[k];
+        for (int i = k + 1; i <= k + score; ++i)
+        {
+            if (i >= (int)counts.size())
+            {
+                counts.push_back(n + 1);
+            }
+            else
+            {
+                counts[i] += n;
+            }
+        }
+
+        k++;
     }
 
-    return std::to_string(count);
+    long long c = std::accumulate(counts.begin(), counts.end(), 0ll);
+    return std::to_string(c);
 }
 } // namespace
 
