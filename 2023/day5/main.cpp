@@ -14,128 +14,202 @@
 #include <vector>
 
 namespace {
-using Stack = std::string;
-
-// const std::vector<Stack> initStacks{ { 'T', 'R', 'D', 'H', 'Q', 'N', 'P', 'B' },
-//                                      { 'V', 'T', 'J', 'B', 'G', 'W' },
-//                                      { 'Q', 'M', 'V', 'S', 'D', 'H', 'R', 'N' },
-//                                      { 'C', 'M', 'N', 'Z', 'P' },
-//                                      { 'B', 'Z', 'D' },
-//                                      { 'Z', 'W', 'C', 'V' },
-//                                      { 'S', 'L', 'Q', 'V', 'C', 'N', 'Z', 'G' },
-//                                      { 'V', 'N', 'D', 'M', 'J', 'G', 'L' },
-//                                      { 'G', 'C', 'Z', 'F', 'M', 'P', 'T' } };
-
-// const std::vector<Stack> initStacks{ { 'N', 'Z' }, { 'D', 'C', 'M' }, { 'P' } };
-
-struct Instr
+std::vector<long long> extractInts(const std::string& str)
 {
-    int count;
-    int from;
-    int to;
-};
-
-std::pair<std::vector<Stack>, std::vector<Instr>> parse(std::ifstream& ifs)
-{
-    // Parse stacks
-    std::vector<Stack> stacks(9);
-    while (true)
+    std::stringstream ss(str);
+    std::vector<long long> out;
+    while (ss.good())
     {
-        std::string line;
-        std::getline(ifs, line);
-        size_t pos = 0;
-        int count = 0;
-        while (true)
-        {
-            pos = line.find('[', pos);
-            if (pos == std::string::npos)
-                break;
-
-            size_t index = pos / 4;
-            stacks[index].push_back(line[pos + 1]);
-            ++count;
-            ++pos;
-        }
-
-        // In the stack number line there is no '[', so we can break
-        if (count == 0)
-            break;
+        long long val;
+        ss >> val;
+        out.push_back(val);
     }
 
-    // Ignore the empty line between the stack input and instruction input
-    std::string ignore;
-    std::getline(ifs, ignore);
-
-    // Parse instructions
-    std::vector<Instr> instr;
-    while (ifs.good())
-    {
-        std::string line;
-        std::getline(ifs, line);
-        if (line.empty())
-            break;
-
-        std::stringstream ss(line);
-
-        Instr a{};
-        ss >> ignore >> a.count >> ignore >> a.from >> ignore >> a.to;
-        --a.from;
-        --a.to;
-        instr.push_back(a);
-    }
-    return { stacks, instr };
+    return out;
 }
+
+struct Mapping
+{
+    long long dst;
+    long long src;
+    long long len;
+};
 
 std::string runSolution1(std::ifstream& ifs)
 {
-    auto [stacks, instr] = parse(ifs);
-    for (auto& stack : stacks)
-    {
-        std::reverse(stack.begin(), stack.end());
-    }
+    std::string line;
+    std::getline(ifs, line);
+    auto pos = line.find(":") + 2;
 
-    for (const auto& move : instr)
+    std::vector<long long> vals = extractInts(line.substr(pos));
+    while (ifs.good())
     {
-        for (int i = 0; i < move.count; ++i)
+        line.clear();
+        std::getline(ifs, line);
+        if (line.empty())
+            continue;
+
+        pos = line.find(":");
+        if (pos == std::string::npos)
         {
-            char c = stacks[move.from].back();
-            stacks[move.from].pop_back();
-            stacks[move.to].push_back(c);
+            throw 1;
+        }
+
+        std::vector<Mapping> maps;
+        while (ifs.good())
+        {
+            line.clear();
+            std::getline(ifs, line);
+            if (line.empty())
+                break;
+
+            auto v = extractInts(line);
+            Mapping m{ .dst = v[0], .src = v[1], .len = v[2] };
+            maps.push_back(m);
+        }
+
+        for (long long i = 0; i < (long long)vals.size(); ++i)
+        {
+            long long val = vals[i];
+            for (auto m : maps)
+            {
+                if (m.src <= val and val < m.src + m.len)
+                {
+                    vals[i] = m.dst + val - m.src;
+                    break;
+                }
+            }
         }
     }
 
-    std::string s;
-    for (const auto& stack : stacks)
+    long long min = std::numeric_limits<long long>::max();
+    for (auto v : vals)
     {
-        s.push_back(stack.back());
+        min = std::min(min, v);
     }
 
-    return s;
+    return std::to_string(min);
+}
+
+struct Range
+{
+    long long start;
+    long long len;
+};
+
+Range findOverlap(Range r, Mapping m)
+{
+    if (r.start + r.len <= m.src)
+    {
+        return { -1, -1 };
+    }
+
+    if (m.src + m.len <= r.start)
+    {
+        return { -1, -1 };
+    }
+
+    long long diff = r.start - m.src;
+    if (diff >= 0)
+    {
+        return Range{ .start = 0, .len = std::min(m.src + m.len - r.start, r.len) };
+    }
+
+    return Range{ .start = -diff, .len = std::min(r.start + r.len - m.src, m.len) };
 }
 
 std::string runSolution2(std::ifstream& ifs)
 {
-    auto [stacks, instr] = parse(ifs);
-    for (auto& stack : stacks)
+    std::string line;
+    std::getline(ifs, line);
+    auto pos = line.find(":") + 2;
+
+    std::vector<long long> vals = extractInts(line.substr(pos));
+    std::vector<Range> ranges;
+    for (int i = 0; i < (int)vals.size(); i += 2)
     {
-        std::reverse(stack.begin(), stack.end());
+        ranges.push_back(Range{ .start = vals[i], .len = vals[i + 1] });
     }
 
-    for (const auto& move : instr)
+    while (ifs.good())
     {
-        size_t pos = stacks[move.from].size() - move.count;
-        auto tail = stacks[move.from].substr(pos);
-        stacks[move.from].erase(stacks[move.from].begin() + pos, stacks[move.from].end());
-        stacks[move.to].append(tail);
+        line.clear();
+        std::getline(ifs, line);
+        if (line.empty())
+            continue;
+
+        pos = line.find(":");
+        if (pos == std::string::npos)
+        {
+            throw 1;
+        }
+
+        std::vector<Mapping> maps;
+        while (ifs.good())
+        {
+            line.clear();
+            std::getline(ifs, line);
+            if (line.empty())
+                break;
+
+            auto v = extractInts(line);
+            Mapping m{ .dst = v[0], .src = v[1], .len = v[2] };
+            maps.push_back(m);
+        }
+
+        std::vector<Range> next;
+        for (auto range : ranges)
+        {
+            std::vector<Range> tmp{ range };
+            while (not tmp.empty())
+            {
+                auto r = tmp.back();
+                tmp.pop_back();
+                bool mapped = false;
+                for (auto m : maps)
+                {
+                    auto overlap = findOverlap(r, m);
+                    if (overlap.len < 0)
+                    {
+                        continue;
+                    }
+
+                    long long offset = m.dst - m.src;
+                    next.push_back(
+                        Range{ .start = r.start + overlap.start + offset, .len = overlap.len });
+
+                    if (overlap.start > 0)
+                    {
+                        tmp.push_back(Range{ .start = r.start, .len = overlap.start });
+                    }
+
+                    if (overlap.start + overlap.len < r.len)
+                    {
+                        tmp.push_back(Range{ .start = r.start + overlap.start + overlap.len,
+                                             .len = r.len - overlap.len - overlap.start });
+                    }
+
+                    mapped = true;
+                    break;
+                }
+
+                if (not mapped)
+                {
+                    next.push_back(r);
+                }
+            }
+        }
+
+        ranges = std::move(next);
     }
 
-    std::string s;
-    for (const auto& stack : stacks)
+    long long min = std::numeric_limits<long long>::max();
+    for (auto r : ranges)
     {
-        s.push_back(stack.back());
+        min = std::min(min, r.start);
     }
 
-    return s;
+    return std::to_string(min);
 }
 } // namespace
 
