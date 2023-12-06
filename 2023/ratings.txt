@@ -10,8 +10,8 @@ Problem   | Difficulty    | Rating    | Runtime (ms)
  4.2      | *             | *         | 0.50
  5.1      | **            | *         | 0.20
  5.2      | ***           | ***       | 0.20
- 6.1      |               |           |
- 6.2      |               |           |
+ 6.1      | *             | **        | 0.03
+ 6.2      | *             | **        | 0.02
  7.1      |               |           |
  7.2      |               |           |
  8.1      |               |           |
@@ -50,7 +50,7 @@ Problem   | Difficulty    | Rating    | Runtime (ms)
 24.2      |               |           |
 25.1      |               |           |
 
-Total time: 2.8 ms
+Total time: 2.85 ms
 
 Best problems:
 1. Day 5: If You Give A Seed A Fertilizer (part 2)
