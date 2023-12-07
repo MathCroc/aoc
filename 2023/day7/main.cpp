@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <limits>
 #include <numeric>
@@ -14,106 +15,178 @@
 #include <vector>
 
 namespace {
-constexpr int limit = 100000;
-constexpr int totSpace = 70000000;
-constexpr int requiredUnused = 30000000;
-
-struct Dir
+struct Hand
 {
-    Dir* parent;
-    std::string name;
-    std::vector<Dir> dirs;
-    std::vector<int> files;
+    std::array<uint8_t, 5> cards;
+    int kind;
+    int bid;
 };
 
-Dir* getDir(Dir* current, const std::string& dirName)
+int index(char c)
 {
-    auto it = std::find_if(current->dirs.begin(), current->dirs.end(), [&dirName](const auto& d) {
-        return d.name == dirName;
-    });
-    return it == current->dirs.end() ? nullptr : &(*it);
+    switch (c)
+    {
+        case 'A':
+            return 0;
+        case 'K':
+            return 1;
+        case 'Q':
+            return 2;
+        case 'J':
+            return 3;
+        case 'T':
+            return 4;
+        default:
+            return 14 - (c - '0');
+    }
 }
 
-Dir* changeDirectory(Dir* root, Dir* current, const std::string& dirName)
+int index2(char c)
 {
-    if (dirName == "/")
-        return root;
-
-    if (dirName == "..")
-        return current->parent;
-
-    auto* child = getDir(current, dirName);
-    if (child)
-        return child;
-
-    current->dirs.push_back(Dir{ .parent = current, .name = dirName });
-    return &current->dirs.back();
+    switch (c)
+    {
+        case 'A':
+            return 0;
+        case 'K':
+            return 1;
+        case 'Q':
+            return 2;
+        case 'J':
+            return 12;
+        case 'T':
+            return 3;
+        default:
+            return 13 - (c - '0');
+    }
 }
 
-Dir parse(std::ifstream& ifs)
+template <typename F>
+std::array<uint8_t, 5> getCards(const std::string& str, F indexFunc)
 {
-    Dir root{ .parent = nullptr, .name = "/" };
-    Dir* current = &root;
+    std::array<uint8_t, 5> cards;
+    for (int i = 0; i < 5; ++i)
+    {
+        cards[i] = indexFunc(str[i]);
+    }
+    return cards;
+}
+
+template <typename F>
+std::vector<Hand> parse(std::ifstream& ifs, F indexFunc)
+{
+    std::vector<Hand> hands;
     while (ifs.good())
     {
-        std::string line;
-        std::getline(ifs, line);
-
-        if (line.empty())
+        std::string str;
+        ifs >> str;
+        if (str.empty())
             break;
 
-        if (line.substr(0, 4) == "$ cd")
-        {
-            std::string dirName = line.substr(5);
-            current = changeDirectory(&root, current, dirName);
-        }
-        else if (std::isdigit(line[0]))
-        {
-            current->files.push_back(std::stoi(line));
-        }
+        int bid = 0;
+        ifs >> bid;
+
+        hands.push_back(Hand{ .cards = getCards(str, indexFunc), .bid = bid });
     }
-    return root;
+    return hands;
 }
 
-int explore(const Dir* dir, int& tot, std::vector<int>& sizes)
+int countsToKind(const std::array<int, 13>& counts)
 {
-    int sum = std::accumulate(dir->files.begin(), dir->files.end(), 0);
-    for (const auto& d : dir->dirs)
+    if (counts[0] == 1)
     {
-        sum += explore(&d, tot, sizes);
+        return 0;
+    }
+    else if (counts[0] == 2 and counts[1] == 1)
+    {
+        return 1;
+    }
+    else if (counts[0] == 2 and counts[1] == 2)
+    {
+        return 2;
+    }
+    else if (counts[0] == 3 and counts[1] == 1)
+    {
+        return 3;
+    }
+    else if (counts[0] == 3 and counts[1] == 2)
+    {
+        return 4;
+    }
+    else if (counts[0] == 4)
+    {
+        return 5;
+    }
+    else
+    {
+        return 6;
+    }
+}
+
+void computeKind(Hand& hand)
+{
+    std::array<int, 13> counts{};
+    for (auto c : hand.cards)
+    {
+        counts[c]++;
     }
 
-    if (sum <= limit)
+    std::sort(counts.begin(), counts.end(), [](auto a, auto b) { return a > b; });
+    hand.kind = countsToKind(counts);
+}
+
+void computeKind2(Hand& hand)
+{
+    std::array<int, 13> counts{};
+    for (auto c : hand.cards)
     {
-        tot += sum;
+        counts[c]++;
     }
-    sizes.push_back(sum);
-    return sum;
+
+    std::sort(counts.begin(), counts.end() - 1, [](auto a, auto b) { return a > b; });
+    counts[0] += counts.back();
+    hand.kind = countsToKind(counts);
+}
+
+template <typename Index, typename Kind>
+std::string solution(std::ifstream& ifs, Index indexFunc, Kind kindFunc)
+{
+    auto hands = parse(ifs, indexFunc);
+    std::for_each(hands.begin(), hands.end(), kindFunc);
+    std::sort(hands.begin(), hands.end(), [](const auto& a, const auto& b) {
+        if (a.kind != b.kind)
+        {
+            return a.kind < b.kind;
+        }
+
+        for (int i = 0; i < 5; ++i)
+        {
+            int ind0 = a.cards[i];
+            int ind1 = b.cards[i];
+            if (ind0 != ind1)
+            {
+                return ind0 > ind1;
+            }
+        }
+        return true;
+    });
+
+    int tot = 0;
+    for (int rank = 0; rank < (int)hands.size(); rank++)
+    {
+        tot += (rank + 1) * hands[rank].bid;
+    }
+
+    return std::to_string(tot);
 }
 
 std::string runSolution1(std::ifstream& ifs)
 {
-    auto root = parse(ifs);
-    int tot = 0;
-    std::vector<int> tmp;
-    explore(&root, tot, tmp);
-    return std::to_string(tot);
+    return solution(ifs, index, computeKind);
 }
 
 std::string runSolution2(std::ifstream& ifs)
 {
-    auto root = parse(ifs);
-
-    int tot = 0;
-    std::vector<int> sizes;
-    int used = explore(&root, tot, sizes);
-
-    int freeSpace = totSpace - used;
-    int spaceNeeded = requiredUnused - freeSpace;
-
-    std::sort(sizes.begin(), sizes.end());
-    auto it = std::lower_bound(sizes.begin(), sizes.end(), spaceNeeded);
-    return std::to_string(*it);
+    return solution(ifs, index2, computeKind2);
 }
 } // namespace
 
