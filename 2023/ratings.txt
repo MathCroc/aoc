@@ -14,8 +14,8 @@ Problem   | Difficulty    | Rating    | Runtime (ms)
  6.2      | *             | **        | 0.02
  7.1      | **            | *         | 0.65
  7.2      | **            | *         | 0.65
- 8.1      |               |           |
- 8.2      |               |           |
+ 8.1      | *             | *         | 1.65
+ 8.2      | ***           | ***       | 10.5
  9.1      |               |           |
  9.2      |               |           |
 10.1      |               |           |
@@ -50,18 +50,18 @@ Problem   | Difficulty    | Rating    | Runtime (ms)
 24.2      |               |           |
 25.1      |               |           |
 
-Total time: 4.15 ms
+Total time: 16.3 ms
 
 Best problems:
 1. Day 5: If You Give A Seed A Fertilizer (part 2)
-2.
+2. Day 8: Haunted Wasteland (part 2)
 3.
 4.
 5.
 
 Most difficult problems:
 1. Day 5: If You Give A Seed A Fertilizer (part 2)
-2.
+2. Day 8: Haunted Wasteland (part 2)
 3.
 4.
 5.

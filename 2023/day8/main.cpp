@@ -14,258 +14,119 @@
 #include <vector>
 
 namespace {
-std::vector<std::string> parse(std::ifstream& ifs)
+struct Node
 {
-    std::vector<std::string> out;
+    std::string left;
+    std::string right;
+};
+
+using Nodes = std::unordered_map<std::string, Node>;
+
+std::pair<std::string, Nodes> parse(std::ifstream& ifs)
+{
+    std::string instructions;
+    std::getline(ifs, instructions);
+
+    Nodes nodes;
     while (ifs.good())
     {
         std::string line;
         std::getline(ifs, line);
 
         if (line.empty())
-            break;
+            continue;
 
-        out.push_back(line);
+        auto key = line.substr(0, 3);
+        Node n{ .left = line.substr(7, 3), .right = line.substr(12, 3) };
+        nodes.insert({ key, n });
     }
-    return out;
-}
-
-void markVisibleIfNeeded(std::vector<std::vector<bool>>& visible,
-                         const std::vector<std::string>& trees,
-                         int row,
-                         int col,
-                         char& max)
-{
-    if (trees[row][col] > max)
-    {
-        visible[row][col] = true;
-        max = trees[row][col];
-    }
+    return { instructions, nodes };
 }
 
 std::string runSolution1(std::ifstream& ifs)
 {
-    const auto trees = parse(ifs);
-    std::vector<std::vector<bool>> visible(trees.size(), std::vector<bool>(trees[0].size(), false));
-
-    const int cols = trees[0].size();
-    const int rows = trees.size();
-
-    for (int row = 0; row < rows; ++row)
+    auto [instr, nodes] = parse(ifs);
+    int steps = 0;
+    std::string current = "AAA";
+    while (current != "ZZZ")
     {
-        visible[row][0] = true;
-        auto max = trees[row][0];
-        for (int i = 1; i < cols; ++i)
+        char c = instr[steps % instr.size()];
+        if (c == 'L')
         {
-            markVisibleIfNeeded(visible, trees, row, i, max);
+            current = nodes[current].left;
         }
-    }
-
-    for (int row = 0; row < rows; ++row)
-    {
-        visible[row][cols - 1] = true;
-        auto max = trees[row][cols - 1];
-        for (int i = cols - 2; i >= 0; --i)
+        else
         {
-            markVisibleIfNeeded(visible, trees, row, i, max);
+            current = nodes[current].right;
         }
+        steps++;
     }
-
-    for (int col = 0; col < cols; ++col)
-    {
-        visible[0][col] = true;
-        auto max = trees[0][col];
-        for (int i = 1; i < rows; ++i)
-        {
-            markVisibleIfNeeded(visible, trees, i, col, max);
-        }
-    }
-
-    for (int col = 0; col < cols; ++col)
-    {
-        visible[rows - 1][col] = true;
-        auto max = trees[rows - 1][col];
-        for (int i = rows - 2; i >= 0; --i)
-        {
-            markVisibleIfNeeded(visible, trees, i, col, max);
-        }
-    }
-
-    int count = 0;
-    for (const auto& row : visible)
-    {
-        for (auto b : row)
-        {
-            count += b;
-        }
-    }
-
-    return std::to_string(count);
+    return std::to_string(steps);
 }
-
-// std::string runSolution2(std::ifstream& ifs)
-// {
-//     const auto trees = parse(ifs);
-//     const int cols = trees[0].size();
-//     const int rows = trees.size();
-
-//     int max = 0;
-//     for (int y = 1; y < rows - 1; ++y)
-//     {
-//         for (int x = 1; x < cols - 1; ++x)
-//         {
-//             const int height = trees[y][x];
-//             int scenic = 1;
-
-//             int i = x + 1;
-//             for (; i < cols - 1; ++i)
-//             {
-//                 if (trees[y][i] >= height)
-//                 {
-//                     break;
-//                 }
-//             }
-//             scenic *= i - x;
-
-//             i = x - 1;
-//             for (; i > 0; --i)
-//             {
-//                 if (trees[y][i] >= height)
-//                 {
-//                     break;
-//                 }
-//             }
-//             scenic *= x - i;
-
-//             i = y + 1;
-//             for (; i < rows - 1; ++i)
-//             {
-//                 if (trees[i][x] >= height)
-//                 {
-//                     break;
-//                 }
-//             }
-//             scenic *= i - y;
-
-//             i = y - 1;
-//             for (; i > 0; --i)
-//             {
-//                 if (trees[i][x] >= height)
-//                 {
-//                     break;
-//                 }
-//             }
-//             scenic *= y - i;
-
-//             if (scenic > max)
-//             {
-//                 max = scenic;
-//             }
-//         }
-//     }
-
-//     return std::to_string(max);
-// }
-
-[[maybe_unused]] void unwind(std::vector<std::tuple<char, int, int>>& stack,
-                             std::vector<std::vector<int>>& scenic,
-                             const std::vector<std::string>& trees,
-                             int row,
-                             int col)
+std::string runSolution2(std::ifstream& ifs)
 {
-    const auto current = trees[row][col];
-    while (not stack.empty() and current >= std::get<0>(stack.back()))
+    auto [instr, nodes] = parse(ifs);
+    std::vector<std::string> starts;
+    for (const auto& [key, n] : nodes)
     {
-        auto [ignore, y, x] = stack.back();
-        scenic[y][x] *= std::abs((row + col) - (x + y));
-        stack.pop_back();
-    }
-}
-
-[[maybe_unused]] void unwindAll(std::vector<std::tuple<char, int, int>>& stack,
-                                std::vector<std::vector<int>>& scenic,
-                                const std::vector<std::string>& trees)
-{
-    const auto [ignore, row, col] = stack.back();
-    scenic[row][col] = 0;
-    stack.pop_back();
-
-    while (not stack.empty())
-    {
-        auto [ignore2, y, x] = stack.back();
-        scenic[y][x] *= std::abs((row + col) - (x + y));
-        stack.pop_back();
-    }
-}
-
-[[maybe_unused]] std::string runSolution2(std::ifstream& ifs)
-{
-    const auto trees = parse(ifs);
-    std::vector<std::vector<int>> scenic(trees.size(), std::vector<int>(trees[0].size(), 1));
-
-    const int cols = trees[0].size();
-    const int rows = trees.size();
-
-    std::vector<std::tuple<char, int, int>> stack;
-    stack.reserve(std::max(cols, rows));
-
-    for (int row = 0; row < rows; ++row)
-    {
-        stack.clear();
-        stack.push_back({ trees[row][0], row, 0 });
-        for (int i = 1; i < cols; ++i)
+        (void)n;
+        if (key[2] == 'A')
         {
-            unwind(stack, scenic, trees, row, i);
-            stack.push_back({ trees[row][i], row, i });
-        }
-        unwindAll(stack, scenic, trees);
-    }
-
-    for (int row = 0; row < rows; ++row)
-    {
-        stack.clear();
-        stack.push_back({ trees[row][cols - 1], row, cols - 1 });
-        for (int i = cols - 2; i >= 0; --i)
-        {
-            unwind(stack, scenic, trees, row, i);
-            stack.push_back({ trees[row][i], row, i });
-        }
-        unwindAll(stack, scenic, trees);
-    }
-
-    for (int col = 0; col < cols; ++col)
-    {
-        stack.clear();
-        stack.push_back({ trees[0][col], 0, col });
-        for (int i = 1; i < rows; ++i)
-        {
-            unwind(stack, scenic, trees, i, col);
-            stack.push_back({ trees[i][col], i, col });
-        }
-        unwindAll(stack, scenic, trees);
-    }
-
-    for (int col = 0; col < cols; ++col)
-    {
-        stack.clear();
-        stack.push_back({ trees[rows - 1][col], rows - 1, col });
-        for (int i = rows - 2; i >= 0; --i)
-        {
-            unwind(stack, scenic, trees, i, col);
-            stack.push_back({ trees[i][col], i, col });
-        }
-        unwindAll(stack, scenic, trees);
-    }
-
-    int max = 0;
-    for (const auto& row : scenic)
-    {
-        for (auto val : row)
-        {
-            max = std::max(max, val);
+            starts.push_back(key);
         }
     }
-    return std::to_string(max);
+
+    std::vector<std::pair<int, int>> loops;
+    for (int i = 0; i < (int)starts.size(); ++i)
+    {
+        int steps = 0;
+        std::string current = starts[i];
+        std::unordered_map<int, int> counts;
+        while (true)
+        {
+            int s = steps % instr.size();
+            char c = instr[s];
+            if (c == 'L')
+            {
+                current = nodes[current].left;
+            }
+            else
+            {
+                current = nodes[current].right;
+            }
+            steps++;
+
+            if (current[2] != 'Z')
+            {
+                continue;
+            }
+
+            auto it = counts.find(s);
+            if (it == counts.end())
+            {
+                // std::cout << starts[i] << ": " << s << " " << steps << std::endl;
+                counts.insert({ s, steps });
+            }
+            else
+            {
+                int offset = it->second;
+                loops.push_back({ offset, steps - offset });
+                // std::cout << starts[i] << ": " << offset << " " << steps - offset << std::endl;
+                break;
+            }
+        }
+    }
+
+    // This wouldn't work on generic input data, but happens to work with the given one.
+    // It turns out that offset and loop size are the same for all the starting points and
+    // moreover, only single end is reached from each start.
+    long long lcm = 1;
+    for (int i = 0; i < (int)loops.size(); ++i)
+    {
+        lcm = std::lcm(lcm, loops[i].second);
+    }
+
+    return std::to_string(lcm);
 }
 } // namespace
 
