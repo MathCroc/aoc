@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -14,114 +15,80 @@
 #include <vector>
 
 namespace {
-struct Move
-{
-    char dir;
-    int count;
-};
+using History = std::vector<int>;
 
-struct Pos
+[[maybe_unused]] int computeNextOrig(History& h)
 {
-    int x;
-    int y;
-};
-
-int sgn(int a)
-{
-    return (a > 0) - (a < 0);
-}
-
-void update(const Move& m, std::vector<Pos>& rope)
-{
-    auto* p = &rope.front();
-    switch (m.dir)
+    bool all_zeros = false;
+    int size = h.size();
+    while (not all_zeros)
     {
-        case 'U':
-            --(p->y);
-            break;
-        case 'L':
-            --(p->x);
-            break;
-        case 'R':
-            ++(p->x);
-            break;
-        case 'D':
-            ++(p->y);
-            break;
-    };
-
-    for (unsigned i = 1; i < rope.size(); ++i)
-    {
-        auto* q = &rope[i];
-        int xDiff = p->x - q->x;
-        int yDiff = p->y - q->y;
-        if (std::abs(xDiff) > 1 and yDiff == 0)
+        all_zeros = true;
+        for (int i = 1; i < size; ++i)
         {
-            q->x += sgn(xDiff);
+            h[i - 1] = h[i] - h[i - 1];
+            all_zeros &= h[i - 1] == 0;
         }
-        else if (std::abs(yDiff) > 1 and xDiff == 0)
-        {
-            q->y += sgn(yDiff);
-        }
-        else if (std::abs(xDiff) + std::abs(yDiff) > 2)
-        {
-            q->x += sgn(xDiff);
-            q->y += sgn(yDiff);
-        }
-
-        p = q;
+        --size;
     }
+
+    return std::accumulate(h.begin() + size, h.end(), 0);
 }
 
-std::vector<Move> parse(std::ifstream& ifs)
+int computeNext(History& h)
 {
-    std::vector<Move> moves;
+    auto start = h.rbegin();
+    auto end = h.rend();
+    while (std::any_of(start, end, [](auto v) { return v != 0; }))
+    {
+        std::adjacent_difference(start, end, start, [](int a, int b) { return b - a; });
+        start++;
+    }
+
+    return std::accumulate(h.rbegin(), start, 0);
+}
+
+int solve(std::ifstream& ifs, bool reverse)
+{
+    History h;
+    h.reserve(100);
+
+    int sum = 0;
     while (ifs.good())
     {
-        Move m{};
-        ifs >> m.dir >> m.count;
-        moves.push_back(m);
-    }
+        h.clear();
+        std::string line;
+        std::getline(ifs, line);
+        if (line.empty())
+            continue;
 
-    return moves;
-}
-
-int simulate(const std::vector<Move>& moves, int ropeLength)
-{
-    std::array<std::array<bool, 151>, 151> visited{};
-    std::vector<Pos> rope(ropeLength, Pos{ 75, 75 });
-    visited[rope.back().y][rope.back().x] = true;
-    for (const auto& m : moves)
-    {
-        for (int i = 0; i < m.count; ++i)
+        const char* start = line.data();
+        const char* end = start + line.size();
+        while (start < end)
         {
-            update(m, rope);
-            visited[rope.back().y][rope.back().x] = true;
+            int v = 0;
+            auto [ptr, ec] = std::from_chars(start, end, v);
+            h.push_back(v);
+            start = ptr + 1;
         }
+
+        if (reverse)
+            std::reverse(h.begin(), h.end());
+
+        sum += computeNext(h);
     }
 
-    int count = 0;
-    for (const auto& row : visited)
-    {
-        for (bool b : row)
-        {
-            count += b;
-        }
-    }
-
-    return count;
+    return sum;
 }
 
 std::string runSolution1(std::ifstream& ifs)
 {
-    const auto moves = parse(ifs);
-    return std::to_string(simulate(moves, 2));
+    return std::to_string(solve(ifs, false));
 }
 
 std::string runSolution2(std::ifstream& ifs)
 {
-    const auto moves = parse(ifs);
-    return std::to_string(simulate(moves, 10));
+    return std::to_string(solve(ifs, true));
 }
 } // namespace
 

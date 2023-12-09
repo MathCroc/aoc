@@ -63,6 +63,7 @@ std::string runSolution1(std::ifstream& ifs)
     }
     return std::to_string(steps);
 }
+
 std::string runSolution2(std::ifstream& ifs)
 {
     auto [instr, nodes] = parse(ifs);
