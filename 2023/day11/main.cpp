@@ -16,267 +16,111 @@
 #include <vector>
 
 namespace {
-struct Monkey
+std::vector<std::string> parse(std::ifstream& ifs)
 {
-    std::vector<long long> items;
-    std::function<long long(long long)> op;
-    int test;
-    int ifTrue;
-    int ifFalse;
-};
+    std::vector<std::string> out;
+    while (ifs.good())
+    {
+        std::string line;
+        std::getline(ifs, line);
+        if (line.empty())
+            break;
 
-const std::vector<Monkey> initMonkeys{ Monkey{ .items = { 85, 79, 63, 72 },
-                                               .op = [](long long old) { return old * 17; },
-                                               .test = 2,
-                                               .ifTrue = 2,
-                                               .ifFalse = 6 },
+        out.push_back(line);
+    }
+    return out;
+}
 
-                                       Monkey{ .items = { 53, 94, 65, 81, 93, 73, 57, 92 },
-                                               .op = [](long long old) { return old * old; },
-                                               .test = 7,
-                                               .ifTrue = 0,
-                                               .ifFalse = 2 },
+std::vector<int> cumsumTable(const std::vector<bool>& inUse)
+{
+    std::vector<int> table(inUse.size());
+    int count = 0;
+    for (int i = 0; i < (int)inUse.size(); ++i)
+    {
+        if (not inUse[i])
+        {
+            ++count;
+        }
 
-                                       Monkey{ .items = { 62, 63 },
-                                               .op = [](long long old) { return old + 7; },
-                                               .test = 13,
-                                               .ifTrue = 7,
-                                               .ifFalse = 6 },
+        table[i] = count;
+    }
+    return table;
+}
 
-                                       Monkey{ .items = { 57, 92, 56 },
-                                               .op = [](long long old) { return old + 4; },
-                                               .test = 5,
-                                               .ifTrue = 4,
-                                               .ifFalse = 5 },
+long long computeDistance(const std::vector<int>& table, int a, int b, long long scale = 1)
+{
+    if (a > b)
+    {
+        std::swap(a, b);
+    }
 
-                                       Monkey{ .items = { 67 },
-                                               .op = [](long long old) { return old + 5; },
-                                               .test = 3,
-                                               .ifTrue = 1,
-                                               .ifFalse = 5 },
+    long long emptyCount = table[b] - table[a];
+    long long diff = b - a;
+    return diff + scale * emptyCount;
+}
 
-                                       Monkey{ .items = { 85, 56, 66, 72, 57, 99 },
-                                               .op = [](long long old) { return old + 6; },
-                                               .test = 19,
-                                               .ifTrue = 1,
-                                               .ifFalse = 0 },
+[[maybe_unused]] long long computeDistanceOrig(
+    const std::vector<int>& empty, // Indices of empty rows/cols
+    int a,
+    int b,
+    long long scale = 1)
+{
+    if (a > b)
+    {
+        std::swap(a, b);
+    }
 
-                                       Monkey{ .items = { 86, 65, 98, 97, 69 },
-                                               .op = [](long long old) { return old * 13; },
-                                               .test = 11,
-                                               .ifTrue = 3,
-                                               .ifFalse = 7 },
+    auto start = std::lower_bound(empty.begin(), empty.end(), a);
+    auto end = std::upper_bound(empty.begin(), empty.end(), b);
+    long long emptyCount = std::distance(start, end);
+    long long diff = b - a;
+    return diff + scale * emptyCount;
+}
 
-                                       Monkey{ .items = { 87, 68, 92, 66, 91, 50, 68 },
-                                               .op = [](long long old) { return old + 2; },
-                                               .test = 17,
-                                               .ifTrue = 4,
-                                               .ifFalse = 3 } };
+std::string solve(std::ifstream& ifs, long long scale)
+{
+    auto map = parse(ifs);
+
+    std::vector<bool> rowsInUse(map.size());
+    std::vector<bool> colsInUse(map[0].size());
+    std::vector<std::pair<int, int>> galaxies;
+    for (int row = 0; row < (int)map.size(); ++row)
+    {
+        for (int col = 0; col < (int)map[row].size(); ++col)
+        {
+            if (map[row][col] == '#')
+            {
+                rowsInUse[row] = true;
+                colsInUse[col] = true;
+                galaxies.push_back({ row, col });
+            }
+        }
+    }
+
+    auto rowTable = cumsumTable(rowsInUse);
+    auto colTable = cumsumTable(colsInUse);
+
+    long long sum = 0;
+    for (int i = 0; i < (int)galaxies.size(); ++i)
+    {
+        for (int j = i + 1; j < (int)galaxies.size(); ++j)
+        {
+            sum += computeDistance(rowTable, galaxies[i].first, galaxies[j].first, scale);
+            sum += computeDistance(colTable, galaxies[i].second, galaxies[j].second, scale);
+        }
+    }
+
+    return std::to_string(sum);
+}
 
 std::string runSolution1(std::ifstream& ifs)
 {
-    auto monkeys = initMonkeys;
-    std::vector<int> counts(monkeys.size(), 0);
-    for (int round = 0; round < 20; ++round)
-    {
-        for (unsigned i = 0; i < monkeys.size(); ++i)
-        {
-            auto& monkey = monkeys[i];
-            counts[i] += monkey.items.size();
-            for (auto item : monkey.items)
-            {
-                item = monkey.op(item) / 3;
-                if (item % monkey.test == 0)
-                {
-                    monkeys[monkey.ifTrue].items.push_back(item);
-                }
-                else
-                {
-                    monkeys[monkey.ifFalse].items.push_back(item);
-                }
-            }
-            monkey.items.clear();
-        }
-    }
-
-    std::nth_element(
-        counts.begin(), counts.begin() + 1, counts.end(), [](int a, int b) { return a > b; });
-    return std::to_string(counts[0] * counts[1]);
-}
-
-// Runtime: ~4.4ms
-[[maybe_unused]] std::string origRunSolution2(std::ifstream& ifs)
-{
-    auto monkeys = initMonkeys;
-    std::vector<long long> counts(monkeys.size(), 0);
-
-    long long lcm = 1;
-    for (const auto& m : monkeys)
-        lcm *= m.test;
-
-    for (int round = 0; round < 10000; ++round)
-    {
-        for (unsigned i = 0; i < monkeys.size(); ++i)
-        {
-            auto& monkey = monkeys[i];
-            counts[i] += monkey.items.size();
-            for (auto item : monkey.items)
-            {
-                item = monkey.op(item) % lcm;
-                if (item % monkey.test == 0)
-                {
-                    monkeys[monkey.ifTrue].items.push_back(item);
-                }
-                else
-                {
-                    monkeys[monkey.ifFalse].items.push_back(item);
-                }
-            }
-            monkey.items.clear();
-        }
-    }
-
-    std::nth_element(
-        counts.begin(), counts.begin() + 1, counts.end(), [](auto a, auto b) { return a > b; });
-    return std::to_string(counts[0] * counts[1]);
-}
-
-struct Operation
-{
-    long long value;
-    bool mul;
-};
-
-struct Monkey2
-{
-    std::array<long long, 36> items; // Slightly faster to use array + count than vector
-    int count;
-    Operation op;
-    int test;
-    int ifTrue;
-    int ifFalse;
-};
-
-const std::vector<Monkey2> initMonkeys2{ Monkey2{ .items = { 85, 79, 63, 72 },
-                                                  .count = 4,
-                                                  .op = { 17, true },
-                                                  .test = 2,
-                                                  .ifTrue = 2,
-                                                  .ifFalse = 6 },
-
-                                         Monkey2{ .items = { 53, 94, 65, 81, 93, 73, 57, 92 },
-                                                  .count = 8,
-                                                  .op = { -1, true },
-                                                  .test = 7,
-                                                  .ifTrue = 0,
-                                                  .ifFalse = 2 },
-
-                                         Monkey2{ .items = { 62, 63 },
-                                                  .count = 2,
-                                                  .op = { 7, false },
-                                                  .test = 13,
-                                                  .ifTrue = 7,
-                                                  .ifFalse = 6 },
-
-                                         Monkey2{ .items = { 57, 92, 56 },
-                                                  .count = 3,
-                                                  .op = { 4, false },
-                                                  .test = 5,
-                                                  .ifTrue = 4,
-                                                  .ifFalse = 5 },
-
-                                         Monkey2{ .items = { 67 },
-                                                  .count = 1,
-                                                  .op = { 5, false },
-                                                  .test = 3,
-                                                  .ifTrue = 1,
-                                                  .ifFalse = 5 },
-
-                                         Monkey2{ .items = { 85, 56, 66, 72, 57, 99 },
-                                                  .count = 6,
-                                                  .op = { 6, false },
-                                                  .test = 19,
-                                                  .ifTrue = 1,
-                                                  .ifFalse = 0 },
-
-                                         Monkey2{ .items = { 86, 65, 98, 97, 69 },
-                                                  .count = 5,
-                                                  .op = { 13, true },
-                                                  .test = 11,
-                                                  .ifTrue = 3,
-                                                  .ifFalse = 7 },
-
-                                         Monkey2{ .items = { 87, 68, 92, 66, 91, 50, 68 },
-                                                  .count = 7,
-                                                  .op = { 2, false },
-                                                  .test = 17,
-                                                  .ifTrue = 4,
-                                                  .ifFalse = 3 } };
-
-// Optimized operation apply
-long long apply(Operation op, long long value)
-{
-    if (op.mul)
-    {
-        const auto v = op.value < 0 ? value : op.value;
-        return v * value;
-    }
-
-    return op.value + value;
+    return solve(ifs, 1);
 }
 
 std::string runSolution2(std::ifstream& ifs)
 {
-    auto monkeys = initMonkeys2;
-    std::vector<long long> counts(monkeys.size(), 0);
-
-    long long lcm = 1;
-    for (const auto& m : monkeys)
-        lcm *= m.test;
-
-    for (int round = 0; round < 10000; ++round)
-    {
-        for (unsigned i = 0; i < monkeys.size(); ++i)
-        {
-            auto& monkey = monkeys[i];
-            const int count = monkey.count;
-            counts[i] += count;
-
-            auto& mTrue = monkeys[monkey.ifTrue];
-            auto& mFalse = monkeys[monkey.ifFalse];
-
-            // Load counts to registers to avoid unnecessary loads and stores
-            int countTrue = mTrue.count;
-            int countFalse = mFalse.count;
-
-            for (int j = 0; j < count; ++j)
-            {
-                auto item = apply(monkey.op, monkey.items[j]);
-
-                // Operation may overflow only if the input cannot be represented with 32 bits
-                if (item >= std::numeric_limits<int32_t>::max())
-                    item %= lcm;
-
-                if (item % monkey.test == 0)
-                {
-                    mTrue.items[countTrue++] = item;
-                }
-                else
-                {
-                    mFalse.items[countFalse++] = item;
-                }
-            }
-            monkey.count = 0;
-
-            // Store back the counts from registers
-            mTrue.count = countTrue;
-            mFalse.count = countFalse;
-        }
-    }
-
-    std::nth_element(
-        counts.begin(), counts.begin() + 1, counts.end(), [](auto a, auto b) { return a > b; });
-    return std::to_string(counts[0] * counts[1]);
+    return solve(ifs, 999'999);
 }
 } // namespace
 
