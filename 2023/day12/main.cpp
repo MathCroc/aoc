@@ -15,17 +15,15 @@
 #include <vector>
 
 namespace {
-struct Pos
+struct Record
 {
-    int x;
-    int y;
+    std::string status;
+    std::vector<int> counts;
 };
 
-const std::vector<Pos> adj{ { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } };
-
-std::vector<std::string> parse(std::ifstream& ifs)
+std::vector<Record> parse(std::ifstream& ifs)
 {
-    std::vector<std::string> out;
+    std::vector<Record> out;
     while (ifs.good())
     {
         std::string line;
@@ -33,249 +31,190 @@ std::vector<std::string> parse(std::ifstream& ifs)
         if (line.empty())
             break;
 
-        out.push_back(line);
+        auto pos = line.find(" ");
+
+        Record r{};
+        r.status = line.substr(0, pos);
+
+        std::stringstream ss(line.substr(pos + 1));
+        while (ss.good())
+        {
+            int v{};
+            ss >> v;
+            r.counts.push_back(v);
+            ss.ignore(1);
+        }
+        out.push_back(r);
     }
+
     return out;
 }
 
-std::pair<Pos, Pos> findStartEnd(std::vector<std::string>& grid)
+bool fits(const std::string& s, int start, int len)
 {
-    Pos start{};
-    Pos end{};
-    for (int row = 0; row < (int)grid.size(); ++row)
-    {
-        for (int col = 0; col < (int)grid[row].size(); ++col)
-        {
-            if (grid[row][col] == 'S')
-            {
-                start = Pos{ .x = col, .y = row };
-                grid[row][col] = 'a';
-            }
-            else if (grid[row][col] == 'E')
-            {
-                end = Pos{ .x = col, .y = row };
-                grid[row][col] = 'z';
-            }
-        }
-    }
-    return { start, end };
+    if (start + len > (int)s.size() - 1)
+        return false;
+
+    if (s[start - 1] == '#')
+        return false;
+
+    if (s[start + len] == '#')
+        return false;
+
+    return std::all_of(
+        s.begin() + start, s.begin() + start + len, [](char v) { return v == '?' or v == '#'; });
 }
 
-uint64_t posHash(Pos p)
+[[maybe_unused]] bool validate(uint64_t b,
+                               const std::vector<int>& pos,
+                               const std::vector<int>& counts)
 {
-    return (static_cast<uint64_t>(p.x) << 32) | static_cast<uint64_t>(p.y);
+    for (int i = 0; i < (int)pos.size(); ++i)
+    {
+        b |= ((1 << counts[i]) - 1) << pos[i];
+    }
+    return ~b == 0;
+}
+
+// brute force - works for part 1
+[[maybe_unused]] long long countOrig(const Record& r)
+{
+    uint64_t b = 0;
+    for (int i = 0; i < (int)r.status.size(); ++i)
+    {
+        if (r.status[i] == '#')
+        {
+            b |= 1 << i;
+        }
+    }
+    b = ~b;
+
+    std::vector<int> pos(r.counts.size());
+    int index = 0;
+    long long tot = 0;
+    while (pos[0] < (int)r.status.size())
+    {
+        if (pos[index] >= (int)r.status.size())
+        {
+            index--;
+            pos[index]++;
+            continue;
+        }
+
+        if (not fits(r.status, pos[index], r.counts[index]))
+        {
+            pos[index]++;
+            continue;
+        }
+
+        if (index == (int)pos.size() - 1)
+        {
+            if (validate(b, pos, r.counts))
+            {
+                tot++;
+            }
+
+            pos[index]++;
+            continue;
+        }
+
+        pos[index + 1] = pos[index] + r.counts[index] + 1;
+        index++;
+    }
+
+    return tot;
+}
+
+long long count(const Record& r)
+{
+    // Add some padding to avoid corner cases
+    std::string status = ".." + r.status + ".";
+
+    // jth element in the tot is the number of solutions for ith segment starting at index j
+    std::vector<long long> tot(status.size(), 0);
+    tot[0] = 1;
+
+    // Previous segment count (initially zero as there was no segments)
+    long long c = 0;
+
+    for (long long i = 0; i < (long long)r.counts.size(); ++i)
+    {
+        std::vector<long long> next(status.size(), 0);
+
+        // Smallest possible index for previous segment to start in order to not miss any #
+        long long k = 0;
+
+        for (long long j = 2; j <= (long long)status.size() - r.counts[i]; ++j)
+        {
+            if (fits(status, j, r.counts[i]))
+            {
+                long long sum = 0;
+                for (long long l = k; l <= j - c - 1; ++l)
+                {
+                    sum += tot[l];
+                }
+
+                next[j] = sum;
+            }
+            else
+            {
+                next[j] = 0;
+            }
+
+            if (status[j] == '#')
+            {
+                k = std::max(k, j - c + 1);
+            }
+        }
+
+        c = r.counts[i];
+        tot = std::move(next);
+    }
+
+    // Accumulate all the valid combinations for the last segment
+    long long sum = 0;
+    long long k = -1;
+    for (long long j = tot.size() - 1; j >= 0 and k - j < r.counts.back(); --j)
+    {
+        if (status[j] == '#' and k == -1)
+        {
+            k = j;
+        }
+        sum += tot[j];
+    }
+
+    return sum;
 }
 
 std::string runSolution1(std::ifstream& ifs)
 {
-    auto grid = parse(ifs);
-
-    auto [start, end] = findStartEnd(grid);
-
-    std::vector<Pos> queue{ start };
-    std::unordered_set<uint64_t> visited;
-    visited.insert(posHash(start));
-    int steps = 0;
-    while (not queue.empty())
+    auto records = parse(ifs);
+    long long tot = 0;
+    for (auto& r : records)
     {
-        std::vector<Pos> next;
-        for (auto [x, y] : queue)
-        {
-            if (x == end.x and y == end.y)
-                return std::to_string(steps);
-
-            const auto level = grid[y][x];
-            for (auto [xDiff, yDiff] : adj)
-            {
-                auto x0 = x + xDiff;
-                auto y0 = y + yDiff;
-                if (x0 < 0 or x0 >= (int)grid[0].size())
-                    continue;
-
-                if (y0 < 0 or y0 >= (int)grid.size())
-                    continue;
-
-                if (grid[y0][x0] > level + 1)
-                    continue;
-
-                auto h = posHash(Pos{ x0, y0 });
-                auto it = visited.find(h);
-                if (it != visited.end())
-                    continue;
-
-                next.push_back(Pos{ x0, y0 });
-                visited.insert(h);
-            }
-        }
-
-        ++steps;
-        queue = std::move(next);
+        tot += count(r);
     }
-
-    return std::to_string(steps);
+    return std::to_string(tot);
 }
 
-// Search backwards from end to any starting candidate
 std::string runSolution2(std::ifstream& ifs)
 {
-    auto grid = parse(ifs);
-
-    auto [start, end] = findStartEnd(grid);
-    start = end;
-
-    std::vector<Pos> queue{ start };
-    std::unordered_set<uint64_t> visited;
-    visited.insert(posHash(start));
-    int steps = 0;
-    while (not queue.empty())
+    auto records = parse(ifs);
+    long long tot = 0;
+    for (auto& r : records)
     {
-        std::vector<Pos> next;
-        for (auto [x, y] : queue)
+        auto s = r.status;
+        auto c = r.counts;
+        for (int i = 0; i < 4; ++i)
         {
-            if (grid[y][x] == 'a')
-                return std::to_string(steps);
-
-            const auto level = grid[y][x];
-            for (auto [xDiff, yDiff] : adj)
-            {
-                auto x0 = x + xDiff;
-                auto y0 = y + yDiff;
-                if (x0 < 0 or x0 >= (int)grid[0].size())
-                    continue;
-
-                if (y0 < 0 or y0 >= (int)grid.size())
-                    continue;
-
-                const auto nextLevel = grid[y0][x0];
-                if (level > nextLevel + 1)
-                    continue;
-
-                auto h = posHash(Pos{ x0, y0 });
-                auto it = visited.find(h);
-                if (it != visited.end())
-                    continue;
-
-                next.push_back(Pos{ x0, y0 });
-                visited.insert(h);
-            }
+            r.status.push_back('?');
+            r.status.insert(r.status.end(), s.begin(), s.end());
+            r.counts.insert(r.counts.end(), c.begin(), c.end());
         }
 
-        ++steps;
-        queue = std::move(next);
+        tot += count(r);
     }
-
-    return std::to_string(steps);
-}
-
-[[maybe_unused]] int dist2(Pos a, Pos b)
-{
-    int xDiff = a.x - b.x;
-    int yDiff = a.y - b.y;
-    return xDiff * xDiff + yDiff * yDiff;
-}
-
-// Old approach: Try to start from all positions and check the shortes route
-// - Keep track of the minimum steps found for each position to allow early exit
-// - Sort starting positions based on the Euclidean distance squared to end position
-// Runtime: ~0.6 ms
-[[maybe_unused]] std::string origRunSolution2(std::ifstream& ifs)
-{
-    auto grid = parse(ifs);
-
-    // Position --> minimum found step count
-    std::unordered_map<uint64_t, int> visited;
-
-    std::vector<Pos> starts;
-    Pos end{};
-    for (int row = 0; row < (int)grid.size(); ++row)
-    {
-        for (int col = 0; col < (int)grid[row].size(); ++col)
-        {
-            if (grid[row][col] == 'S')
-            {
-                grid[row][col] = 'a';
-            }
-            else if (grid[row][col] == 'E')
-            {
-                end = Pos{ .x = col, .y = row };
-                grid[row][col] = 'z';
-            }
-
-            if (grid[row][col] == 'a')
-            {
-                starts.push_back(Pos{ .x = col, .y = row });
-                visited.insert({ posHash(Pos{ col, row }), 0 });
-            }
-        }
-    }
-
-    // Start greedily closest to end
-    std::sort(starts.begin(), starts.end(), [end](auto a, auto b) {
-        return dist2(a, end) < dist2(b, end);
-    });
-
-    int minSteps = 100000;
-    for (auto start : starts)
-    {
-        std::vector<Pos> queue{ start };
-        int steps = 0;
-        while (not queue.empty())
-        {
-            std::vector<Pos> next;
-            for (auto [x, y] : queue)
-            {
-                if (x == end.x and y == end.y)
-                    goto found;
-
-                const auto level = grid[y][x];
-                for (auto [xDiff, yDiff] : adj)
-                {
-                    auto x0 = x + xDiff;
-                    auto y0 = y + yDiff;
-                    if (x0 < 0 or x0 >= (int)grid[0].size())
-                        continue;
-
-                    if (y0 < 0 or y0 >= (int)grid.size())
-                        continue;
-
-                    if (grid[y0][x0] > level + 1)
-                        continue;
-
-                    auto h = posHash(Pos{ x0, y0 });
-                    auto it = visited.find(h);
-                    if (it != visited.end())
-                    {
-                        if (it->second <= steps)
-                            continue;
-                        else
-                            it->second = steps;
-                    }
-                    else
-                    {
-                        visited.insert({ h, steps });
-                    }
-
-                    next.push_back(Pos{ x0, y0 });
-                }
-            }
-
-            ++steps;
-            if (steps >= minSteps)
-                break;
-
-            queue = std::move(next);
-        }
-
-        continue;
-
-    found:
-        if (steps < minSteps)
-        {
-            minSteps = steps;
-        }
-    }
-
-    return std::to_string(minSteps);
+    return std::to_string(tot);
 }
 } // namespace
 
