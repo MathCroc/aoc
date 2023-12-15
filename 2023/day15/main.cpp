@@ -15,190 +15,100 @@
 #include <vector>
 
 namespace {
-struct Pos
+std::vector<std::string> parse(std::ifstream& ifs)
 {
-    int x;
-    int y;
-};
-
-struct Detection
-{
-    Pos sensor;
-    Pos beacon;
-};
-
-std::vector<Detection> parse(std::ifstream& ifs)
-{
-    std::vector<Detection> out;
+    std::vector<std::string> out;
     while (ifs.good())
     {
-        int a, b, c, d;
+        std::string s;
+        std::getline(ifs, s, ',');
+        if (s.empty())
+            break;
 
-        ifs.ignore(12);
-        ifs >> a;
-        ifs.ignore(4);
-        ifs >> b;
-        ifs.ignore(25);
-        ifs >> c;
-        ifs.ignore(4);
-        ifs >> d;
-        ifs.ignore(1);
-        out.push_back({ { a, b }, { c, d } });
+        out.push_back(s);
     }
     return out;
 }
 
-// Assumes that the target row doesn't have gaps in coverage
-// Could be extended to relax this assumption by holding multiple ranges instead of just one
-// Runtime: 0.03 ms
+uint8_t hash(std::string_view s)
+{
+    uint8_t hash = 0;
+    for (char c : s)
+    {
+        hash += c;
+        hash *= 17;
+    }
+    return hash;
+}
+
 std::string runSolution1(std::ifstream& ifs)
 {
-    constexpr int targetY = 2000000;
-
-    const auto detections = parse(ifs);
-    int minX = std::numeric_limits<int>::max();
-    int maxX = std::numeric_limits<int>::min();
-    for (const auto& [sensor, beacon] : detections)
+    auto insts = parse(ifs);
+    int sum = 0;
+    for (const auto& s : insts)
     {
-        int distance = std::abs(sensor.x - beacon.x) + std::abs(sensor.y - beacon.y);
-        int yDiff = std::abs(sensor.y - targetY);
-        if (yDiff < distance)
-        {
-            minX = std::min(minX, sensor.x - (distance - yDiff));
-            maxX = std::max(maxX, sensor.x + (distance - yDiff));
-        }
+        sum += hash(s);
     }
-
-    int beacons = 0;
-    std::unordered_set<uint64_t> included;
-    for (const auto& [sensor, beacon] : detections)
-    {
-        if (beacon.y == targetY and beacon.x >= minX and beacon.x <= maxX)
-        {
-            uint64_t h = ((uint64_t)beacon.x << 32) | (uint64_t)beacon.y;
-            auto it = included.find(h);
-            if (it != included.end())
-                continue;
-
-            included.insert(h);
-            ++beacons;
-        }
-    }
-
-    return std::to_string(maxX - minX - beacons + 1);
+    return std::to_string(sum);
 }
 
-bool checkCoverage(const std::vector<std::pair<Pos, int>>& coverage, int x, int y)
+struct Lens
 {
-    constexpr int maxPos = 4000000;
+    std::string label;
+    int focal;
+};
 
-    if (x < 0 or x > maxPos or y < 0 or y > maxPos)
-        return true;
-
-    for (const auto& [pos, d] : coverage)
-    {
-        int distance = std::abs(pos.x - x) + std::abs(pos.y - y);
-        if (distance <= d)
-            return true;
-    }
-
-    std::cout << (long long)x * maxPos + y << std::endl;
-    return false;
-}
-
-Pos intersection(int ka, int a, int kb, int b)
+struct Box
 {
-    int x = (b - a) / (ka - kb);
-    int y = ka * x + a;
-    return { x, y };
-}
+    std::vector<Lens> lenses;
+};
 
-// Runtime: 0.04 ms
 std::string runSolution2(std::ifstream& ifs)
 {
-    const auto detections = parse(ifs);
-    std::vector<std::pair<Pos, int>> coverage;
-    for (const auto& [sensor, beacon] : detections)
+    auto insts = parse(ifs);
+    std::array<Box, 256> boxes{};
+    for (const auto& s : insts)
     {
-        int distance = std::abs(sensor.x - beacon.x) + std::abs(sensor.y - beacon.y);
-        coverage.push_back({ sensor, distance });
-    }
+        auto pos = s.find_first_of("=-");
+        std::string_view sv(s);
+        auto label = sv.substr(0, pos);
+        auto h = hash(label);
+        auto& box = boxes[h];
+        auto it = std::find_if(box.lenses.begin(), box.lenses.end(), [label](const auto& a) {
+            return a.label == label;
+        });
 
-    for (unsigned i = 0; i < coverage.size(); ++i)
-    {
-        for (unsigned j = i + 1; j < coverage.size(); ++j)
+        if (s[pos] == '=')
         {
-            const auto& [a, da] = coverage[i];
-            const auto& [b, db] = coverage[j];
-
-            int distance = std::abs(a.x - b.x) + std::abs(a.y - b.y);
-            if (distance - 1 > da + db)
-                continue;
-
-            // Extract candidate positions
-
-            // UL + LL
-            Pos p;
-            p = intersection(1, -(a.x - da) + a.y, -1, (b.x - db) + b.y);
-            if (not checkCoverage(coverage, p.x - 1, p.y))
+            int focal = s[pos + 1] - '0';
+            if (it != box.lenses.end())
             {
-                goto end;
+                it->focal = focal;
             }
-
-            // UL + UR
-            p = intersection(1, -(a.x - da) + a.y, -1, (b.x + db) + b.y);
-            if (not checkCoverage(coverage, p.x, p.y + 1))
+            else
             {
-                goto end;
+                box.lenses.push_back(Lens{ .label = std::string(label), .focal = focal });
             }
-
-            // LR + LL
-            p = intersection(1, -(a.x + da) + a.y, -1, (b.x - db) + b.y);
-            if (not checkCoverage(coverage, p.x, p.y - 1))
+        }
+        else
+        {
+            if (it != box.lenses.end())
             {
-                goto end;
-            }
-
-            // LR + UR
-            p = intersection(1, -(a.x + da) + a.y, -1, (b.x + db) + b.y);
-            if (not checkCoverage(coverage, p.x + 1, p.y))
-            {
-                goto end;
-            }
-
-            // UR + LR
-            p = intersection(-1, (a.x + da) + a.y, 1, -(b.x + db) + b.y);
-            if (not checkCoverage(coverage, p.x + 1, p.y))
-            {
-                goto end;
-            }
-
-            // UR + UL
-            p = intersection(-1, (a.x + da) + a.y, 1, -(b.x - db) + b.y);
-            if (not checkCoverage(coverage, p.x, p.y + 1))
-            {
-                goto end;
-            }
-
-            // LL + LR
-            p = intersection(-1, (a.x - da) + a.y, 1, -(b.x + db) + b.y);
-            if (not checkCoverage(coverage, p.x, p.y - 1))
-            {
-                goto end;
-            }
-
-            // LL + UL
-            p = intersection(-1, (a.x - da) + a.y, 1, -(b.x - db) + b.y);
-            if (not checkCoverage(coverage, p.x - 1, p.y))
-            {
-                goto end;
+                box.lenses.erase(it);
             }
         }
     }
 
-end:
+    int sum = 0;
+    for (int i = 0; i < (int)boxes.size(); ++i)
+    {
+        for (int j = 0; j < (int)boxes[i].lenses.size(); ++j)
+        {
+            sum += (i + 1) * (j + 1) * boxes[i].lenses[j].focal;
+        }
+    }
 
-    return "";
+    return std::to_string(sum);
 }
 } // namespace
 
