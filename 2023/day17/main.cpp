@@ -16,235 +16,227 @@
 #include <vector>
 
 namespace {
-std::vector<bool> parse(std::ifstream& ifs)
+std::vector<std::string> parse(std::ifstream& ifs)
 {
-    std::vector<bool> jets;
+    std::vector<std::string> out;
     while (ifs.good())
     {
-        char c = 0;
-        ifs >> c;
-        if (c == '>')
-        {
-            jets.push_back(true);
-        }
-        else if (c == '<')
-        {
-            jets.push_back(false);
-        }
+        std::string line;
+        std::getline(ifs, line);
+        if (line.empty())
+            break;
+
+        out.push_back('#' + line + '#');
     }
-    return jets;
+
+    out.insert(out.begin(), std::string(out[0].size(), '#'));
+    out.push_back(std::string(out[0].size(), '#'));
+    return out;
 }
 
-//  6     0
-// |.......|
-struct Shape
+struct Path
 {
-    std::vector<uint8_t> rows;
-    int right;
+    int x;
+    int y;
+    int dx;
+    int dy;
+    int straight; // How many steps can be moved straigt still
+    int loss; // How much heat loss is remaining in this square
+    int tot;
 };
 
-using Tower = std::vector<uint32_t>;
-
-bool collides(const Tower& tower, const Shape& shape, int height)
-{
-    for (unsigned i = 0; i < shape.rows.size(); ++i)
-    {
-        if (tower[height + i] & (shape.rows[i] << shape.right))
-            return true;
-    }
-    return false;
-}
-
-int fall(Tower& tower, const Shape& shape, int height)
-{
-    if (not collides(tower, shape, height - 1))
-        return -1;
-
-    for (unsigned i = 0; i < shape.rows.size(); ++i)
-    {
-        tower[height + i] |= (shape.rows[i] << shape.right);
-    }
-    return height + shape.rows.size();
-}
-
-void push(const Tower& tower, Shape& shape, bool jet, int height)
-{
-    auto tmp = shape;
-    tmp.right += jet ? -1 : 1;
-    if (not collides(tower, tmp, height))
-        shape = tmp;
-}
-
-[[maybe_unused]] void print(const Tower& tower, int maxHeight)
-{
-    for (int i = maxHeight; i >= 0; --i)
-    {
-        std::bitset<9> b(tower[i]);
-        std::cout << b << std::endl;
-    }
-    std::cout << std::endl << std::endl;
-}
-
-const std::vector<Shape> shapes{ { { 0b1111 }, 2 },
-                                 { { 0b010, 0b111, 0b010 }, 3 },
-                                 { { 0b111, 0b001, 0b001 }, 3 },
-                                 { { 0b1, 0b1, 0b1, 0b1 }, 5 },
-                                 { { 0b11, 0b11 }, 4 } };
-
-std::string runSolution1(std::ifstream& ifs)
-{
-    const auto jets = parse(ifs);
-    Tower tower(2022 * 4, 0b100000001);
-    tower[0] = 0xFF;
-
-    int maxHeight = 1;
-    unsigned shapeIndex = 0;
-    unsigned jetIndex = 0;
-    for (int shapeCount = 0; shapeCount < 2022; ++shapeCount)
-    {
-        int height = maxHeight + 3;
-        Shape shape = shapes[shapeIndex];
-
-        while (true)
-        {
-            push(tower, shape, jets[jetIndex], height);
-
-            ++jetIndex;
-            if (jetIndex >= jets.size())
-                jetIndex = 0;
-
-            int ret = fall(tower, shape, height);
-            if (ret < 0)
-            {
-                --height;
-                continue;
-            }
-
-            maxHeight = std::max(maxHeight, ret);
-            break;
-        }
-
-        ++shapeIndex;
-        if (shapeIndex >= shapes.size())
-            shapeIndex = 0;
-    }
-
-    return std::to_string(maxHeight - 1);
-}
-
-uint64_t hash(const Tower& tower, int height, int jetIndex)
+uint64_t hash(const Path& p)
 {
     uint64_t h = 0;
-    for (int i = height; i >= std::max(0, height - 3); --i)
-    {
-        h |= (uint64_t)tower[i];
-        h <<= 9;
-    }
-
-    h <<= 16;
-    h |= (uint64_t)jetIndex;
+    h |= (uint64_t)p.x & ((1ull << 20) - 1);
+    h |= ((uint64_t)p.y & ((1ull << 20) - 1)) << 20;
+    h |= (uint64_t)(p.dx > 0) << 40;
+    h |= (uint64_t)(p.dx < 0) << 41;
+    h |= (uint64_t)(p.dy > 0) << 42;
+    h |= (uint64_t)(p.dy < 0) << 43;
     return h;
 }
 
-// First shape is 4 wide and chamber is 7 wide, so the first shape cannot fall beyond the previous first shape
-// Hash: 4 top rows (36 bits) + jet index (16 bits)
+uint64_t hash2(const Path& p)
+{
+    uint64_t h = 0;
+    h |= (uint64_t)p.x & ((1ull << 20) - 1);
+    h |= ((uint64_t)p.y & ((1ull << 20) - 1)) << 20;
+    h |= (uint64_t)(p.dx > 0) << 40;
+    h |= (uint64_t)(p.dx < 0) << 41;
+    h |= (uint64_t)(p.dy > 0) << 42;
+    h |= (uint64_t)(p.dy < 0) << 43;
+    h |= (uint64_t)p.straight << 44;
+    return h;
+}
+
+Path move(Path p)
+{
+    p.x += p.dx;
+    p.y += p.dy;
+    p.straight++;
+    return p;
+}
+
+Path turnLeft(Path p)
+{
+    std::swap(p.dx, p.dy);
+    p.dx = -p.dx;
+
+    p.x += p.dx;
+    p.y += p.dy;
+    p.straight = 1;
+    return p;
+}
+
+Path turnRight(Path p)
+{
+    std::swap(p.dx, p.dy);
+    p.dy = -p.dy;
+
+    p.x += p.dx;
+    p.y += p.dy;
+    p.straight = 1;
+    return p;
+}
+
+void enter(const std::vector<std::string>& map,
+           std::unordered_map<uint64_t, int>& visited,
+           std::vector<Path>& queue,
+           Path p)
+{
+    const char c = map[p.y][p.x];
+    if (c == '#')
+        return;
+
+    uint64_t h = hash(p);
+    auto it = visited.find(h);
+    if (it != visited.end() and it->second <= p.straight)
+        return;
+
+    visited.insert({ h, p.straight });
+
+    p.tot += c - '0';
+    p.loss = c - '0' - 1;
+    queue.push_back(p);
+}
+
+void enter2(const std::vector<std::string>& map,
+            std::unordered_map<uint64_t, int>& visited,
+            std::vector<Path>& queue,
+            Path p)
+{
+    const char c = map[p.y][p.x];
+    if (c == '#')
+        return;
+
+    uint64_t h = hash2(p);
+    auto it = visited.find(h);
+    if (it != visited.end() and it->second <= p.straight)
+        return;
+
+    visited.insert({ h, p.straight });
+
+    p.tot += c - '0';
+    p.loss = c - '0' - 1;
+    queue.push_back(p);
+}
+
+std::string runSolution1(std::ifstream& ifs)
+{
+    const auto map = parse(ifs);
+    std::vector<Path> queue;
+    std::unordered_map<uint64_t, int> visited;
+
+    queue.push_back(Path{ .x = 1, .y = 1, .dx = 1, .dy = 0, .straight = 3, .loss = 0, .tot = 0 });
+    queue.push_back(Path{ .x = 1, .y = 1, .dx = 0, .dy = 1, .straight = 3, .loss = 0, .tot = 0 });
+    while (not queue.empty())
+    {
+        std::vector<Path> next;
+        for (const auto& p : queue)
+        {
+            if (p.x == (int)map[0].size() - 2 and p.y == (int)map.size() - 2)
+            {
+                return std::to_string(p.tot);
+            }
+
+            if (p.loss > 0)
+            {
+                auto tmp = p;
+                tmp.loss--;
+                next.push_back(tmp);
+                continue;
+            }
+
+            if (p.straight < 3)
+            {
+                auto tmp = move(p);
+                enter(map, visited, next, tmp);
+            }
+
+            auto left = turnLeft(p);
+            enter(map, visited, next, left);
+
+            auto right = turnRight(p);
+            enter(map, visited, next, right);
+        }
+
+        queue = std::move(next);
+    }
+
+    return "Not found";
+}
+
 std::string runSolution2(std::ifstream& ifs)
 {
-    constexpr long long rocks = 1000000000000;
+    const auto map = parse(ifs);
+    std::vector<Path> queue;
+    std::unordered_map<uint64_t, int> visited;
 
-    std::unordered_map<uint64_t, std::pair<int, int>> visited;
-
-    const auto jets = parse(ifs);
-    Tower tower(jets.size() * shapes.size() * 4, 0b100000001);
-    tower[0] = 0xFF;
-
-    int maxHeight = 1;
-    unsigned shapeIndex = 0;
-    unsigned jetIndex = 0;
-    long long shapeCount = 0;
-    long long shapeCountPeriod = 0;
-    long long shapeCountOffset = 0;
-    long long heightOffset = 0;
-    long long heightPeriod = 0;
-    while (true)
+    queue.push_back(Path{ .x = 1, .y = 1, .dx = 1, .dy = 0, .straight = 0, .loss = 0, .tot = 0 });
+    queue.push_back(Path{ .x = 1, .y = 1, .dx = 0, .dy = 1, .straight = 0, .loss = 0, .tot = 0 });
+    while (not queue.empty())
     {
-        if (shapeIndex == 0)
+        std::vector<Path> next;
+        for (const auto& p : queue)
         {
-            auto h = hash(tower, maxHeight - 1, jetIndex);
-            if (visited.find(h) != visited.end())
+            if (p.x == (int)map[0].size() - 2 and p.y == (int)map.size() - 2 and p.straight >= 4 and
+                p.straight <= 10)
             {
-                std::tie(shapeCountOffset, heightOffset) = visited.at(h);
-                shapeCountPeriod = shapeCount - shapeCountOffset;
-                heightPeriod = (maxHeight - 1) - heightOffset;
-                break;
+                return std::to_string(p.tot);
             }
-            else
+
+            if (p.loss > 0)
             {
-                visited.insert({ h, { shapeCount, maxHeight - 1 } });
-            }
-        }
-
-        int height = maxHeight + 3;
-        Shape shape = shapes[shapeIndex];
-
-        while (true)
-        {
-            push(tower, shape, jets[jetIndex], height);
-
-            ++jetIndex;
-            if (jetIndex >= jets.size())
-                jetIndex = 0;
-
-            int ret = fall(tower, shape, height);
-            if (ret < 0)
-            {
-                --height;
+                auto tmp = p;
+                tmp.loss--;
+                next.push_back(tmp);
                 continue;
             }
 
-            maxHeight = std::max(maxHeight, ret);
-            break;
-        }
-
-        ++shapeCount;
-        ++shapeIndex;
-        if (shapeIndex >= shapes.size())
-            shapeIndex = 0;
-    }
-
-    long long repeats = (rocks - shapeCountOffset) / shapeCountPeriod;
-    long long left = (rocks - shapeCountOffset) % shapeCountPeriod;
-    while (left > 0)
-    {
-        int height = maxHeight + 3;
-        Shape shape = shapes[shapeIndex];
-
-        while (true)
-        {
-            push(tower, shape, jets[jetIndex], height);
-
-            ++jetIndex;
-            if (jetIndex >= jets.size())
-                jetIndex = 0;
-
-            int ret = fall(tower, shape, height);
-            if (ret < 0)
-            {
-                --height;
+            if (p.straight > 10)
                 continue;
+
+            if (p.straight < 10)
+            {
+                auto tmp = move(p);
+                enter2(map, visited, next, tmp);
             }
 
-            maxHeight = std::max(maxHeight, ret);
-            break;
+            if (p.straight >= 4)
+            {
+                auto left = turnLeft(p);
+                enter2(map, visited, next, left);
+
+                auto right = turnRight(p);
+                enter2(map, visited, next, right);
+            }
         }
 
-        --left;
-        ++shapeIndex;
-        if (shapeIndex >= shapes.size())
-            shapeIndex = 0;
+        queue = std::move(next);
     }
 
-    return std::to_string(maxHeight - 1 + (repeats - 1) * heightPeriod);
+    return "Not found";
 }
 } // namespace
 
