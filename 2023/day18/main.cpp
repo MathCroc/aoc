@@ -188,18 +188,6 @@ long long count(const std::vector<Dig>& plan)
     auto yIt = std::unique(ys.begin(), ys.end());
     ys.erase(yIt, ys.end());
 
-    // std::cout << "xs: ";
-    // for (auto v : xs)
-    // {
-    //     std::cout << v << " ";
-    // }
-    // std::cout << std::endl << "ys: ";
-    // for (auto v : ys)
-    // {
-    //     std::cout << v << " ";
-    // }
-    // std::cout << std::endl;
-
     // Mark the loop
     std::vector<std::vector<bool>> grid(ys.size(), std::vector<bool>(xs.size()));
     long long count = 0;
@@ -261,22 +249,6 @@ long long count(const std::vector<Dig>& plan)
         }
     }
 
-    // for (const auto& row : grid)
-    // {
-    //     for (auto b : row)
-    //     {
-    //         if (b)
-    //         {
-    //             std::cout << "#";
-    //         }
-    //         else
-    //         {
-    //             std::cout << ".";
-    //         }
-    //     }
-    //     std::cout << std::endl;
-    // }
-
     for (int row = 0; row < (int)grid.size(); ++row)
     {
         for (int col = 0; col < (int)grid[row].size(); ++col)
@@ -287,8 +259,6 @@ long long count(const std::vector<Dig>& plan)
             count += bfs2(grid, xs, ys, row, col);
         }
     }
-
-    std::cout << count << std::endl;
 
     return count;
 }
@@ -395,79 +365,10 @@ std::string runSolution2(std::ifstream& ifs)
     {
         d.count = std::stoll(d.color.substr(0, 5), nullptr, 16);
         d.dir = d.color[5];
-
-        std::cout << d.count << " " << d.dir << std::endl;
     }
 
     return std::to_string(count(plan));
 }
-
-// struct Segment
-// {
-//     long long level;
-//     long long start;
-//     long long len; // Contains both the starting and ending points
-// };
-
-// long long countRow(const std::vector<Segment>& vertical,
-//                    const std::vector<Segment>& horizontal,
-//                    long long row)
-// {
-//     auto [first, last] = std::equal_range(
-//         horizontal.begin(), horizontal.end(), row, [](auto a, auto b) { return a < b.level; });
-
-//     if (first != last)
-//     {
-//     }
-
-//     return 0;
-// }
-
-// std::string runSolution2(std::ifstream& ifs)
-// {
-//     const auto plan = parse(ifs);
-
-//     std::vector<Segment> vertical;
-//     std::vector<Segment> horizontal;
-//     int x = 0;
-//     int y = 0;
-//     for (const auto& d : plan)
-//     {
-//         const long long distance = std::stoll(d.color.substr(0, 5), nullptr, 16);
-//         const char dir = d.color[5];
-
-//         switch (dir)
-//         {
-//             case '0': // right
-//                 horizontal.push_back({ .level = y, .start = x, .len = distance + 1 });
-//                 x += distance;
-//                 break;
-//             case '1': // down
-//                 vertical.push_back({ .level = x, .start = y, .len = distance + 1 });
-//                 y += d.count;
-//                 break;
-//             case '2': // left
-//                 horizontal.push_back({ .level = y, .start = x - distance, .len = distance + 1 });
-//                 x -= d.count;
-//                 break;
-//             case '3': // up
-//                 vertical.push_back({ -level = x, .start = y - distance, .len = distance + 1 });
-//                 y -= d.count;
-//                 break;
-//             default:
-//                 throw 1;
-//         }
-//     }
-
-//     auto seg_comp = [](auto a, auto b) {
-//         return (a.level == b.level) ? a.start < b.start : a.level < b.level;
-//     };
-
-//     std::sort(vertical.begin(), vertical.end(), seg_comp);
-//     std::sort(horizontal.begin(), horizontal.end(), seg_comp);
-
-//     return "";
-// }
 } // namespace
 
 int main(int argc, char** argv)

@@ -16,170 +16,193 @@
 #include <vector>
 
 namespace {
-// ore, clay, obsidian
-using Cost = std::array<int, 3>;
-
-struct Blueprint
+struct Rule
 {
-    int id;
-    std::array<Cost, 4> costs;
+    int index; // <0 means always true
+    bool lt;
+    int value;
+    std::string dst;
 };
 
-int ceil(int val, int div)
+struct Workflow
 {
-    return (val + div - 1) / div;
-}
-
-const std::vector<Blueprint> blueprints{
-    Blueprint{ .id = 1, .costs = { { { 3, 0, 0 }, { 4, 0, 0 }, { 4, 18, 0 }, { 3, 0, 13 } } } },
-    Blueprint{ .id = 2, .costs = { { { 4, 0, 0 }, { 4, 0, 0 }, { 2, 11, 0 }, { 4, 0, 8 } } } },
-    Blueprint{ .id = 3, .costs = { { { 3, 0, 0 }, { 3, 0, 0 }, { 2, 15, 0 }, { 3, 0, 9 } } } },
-    Blueprint{ .id = 4, .costs = { { { 2, 0, 0 }, { 2, 0, 0 }, { 2, 8, 0 }, { 2, 0, 14 } } } },
-    Blueprint{ .id = 5, .costs = { { { 4, 0, 0 }, { 3, 0, 0 }, { 2, 19, 0 }, { 3, 0, 13 } } } },
-    Blueprint{ .id = 6, .costs = { { { 3, 0, 0 }, { 3, 0, 0 }, { 3, 20, 0 }, { 2, 0, 12 } } } },
-    Blueprint{ .id = 7, .costs = { { { 2, 0, 0 }, { 3, 0, 0 }, { 3, 8, 0 }, { 3, 0, 20 } } } },
-    Blueprint{ .id = 8, .costs = { { { 4, 0, 0 }, { 3, 0, 0 }, { 2, 5, 0 }, { 2, 0, 10 } } } },
-    Blueprint{ .id = 9, .costs = { { { 2, 0, 0 }, { 3, 0, 0 }, { 3, 11, 0 }, { 3, 0, 14 } } } },
-    Blueprint{ .id = 10, .costs = { { { 3, 0, 0 }, { 4, 0, 0 }, { 4, 18, 0 }, { 3, 0, 8 } } } },
-    Blueprint{ .id = 11, .costs = { { { 2, 0, 0 }, { 2, 0, 0 }, { 2, 20, 0 }, { 2, 0, 14 } } } },
-    Blueprint{ .id = 12, .costs = { { { 4, 0, 0 }, { 4, 0, 0 }, { 4, 11, 0 }, { 4, 0, 12 } } } },
-    Blueprint{ .id = 13, .costs = { { { 2, 0, 0 }, { 3, 0, 0 }, { 3, 14, 0 }, { 3, 0, 19 } } } },
-    Blueprint{ .id = 14, .costs = { { { 4, 0, 0 }, { 4, 0, 0 }, { 4, 10, 0 }, { 2, 0, 7 } } } },
-    Blueprint{ .id = 15, .costs = { { { 2, 0, 0 }, { 4, 0, 0 }, { 3, 20, 0 }, { 2, 0, 17 } } } },
-    Blueprint{ .id = 16, .costs = { { { 3, 0, 0 }, { 4, 0, 0 }, { 3, 15, 0 }, { 4, 0, 16 } } } },
-    Blueprint{ .id = 17, .costs = { { { 4, 0, 0 }, { 4, 0, 0 }, { 2, 11, 0 }, { 3, 0, 14 } } } },
-    Blueprint{ .id = 18, .costs = { { { 4, 0, 0 }, { 4, 0, 0 }, { 3, 7, 0 }, { 4, 0, 20 } } } },
-    Blueprint{ .id = 19, .costs = { { { 2, 0, 0 }, { 4, 0, 0 }, { 4, 15, 0 }, { 2, 0, 20 } } } },
-    Blueprint{ .id = 20, .costs = { { { 3, 0, 0 }, { 3, 0, 0 }, { 2, 16, 0 }, { 2, 0, 18 } } } },
-    Blueprint{ .id = 21, .costs = { { { 4, 0, 0 }, { 4, 0, 0 }, { 4, 15, 0 }, { 3, 0, 8 } } } },
-    Blueprint{ .id = 22, .costs = { { { 3, 0, 0 }, { 3, 0, 0 }, { 3, 17, 0 }, { 4, 0, 8 } } } },
-    Blueprint{ .id = 23, .costs = { { { 3, 0, 0 }, { 4, 0, 0 }, { 2, 15, 0 }, { 3, 0, 7 } } } },
-    Blueprint{ .id = 24, .costs = { { { 4, 0, 0 }, { 4, 0, 0 }, { 2, 9, 0 }, { 3, 0, 15 } } } },
-    Blueprint{ .id = 25, .costs = { { { 3, 0, 0 }, { 4, 0, 0 }, { 4, 6, 0 }, { 2, 0, 20 } } } },
-    Blueprint{ .id = 26, .costs = { { { 2, 0, 0 }, { 2, 0, 0 }, { 2, 10, 0 }, { 2, 0, 11 } } } },
-    Blueprint{ .id = 27, .costs = { { { 2, 0, 0 }, { 4, 0, 0 }, { 2, 20, 0 }, { 3, 0, 15 } } } },
-    Blueprint{ .id = 28, .costs = { { { 4, 0, 0 }, { 4, 0, 0 }, { 2, 16, 0 }, { 4, 0, 16 } } } },
-    Blueprint{ .id = 29, .costs = { { { 3, 0, 0 }, { 4, 0, 0 }, { 4, 5, 0 }, { 3, 0, 12 } } } },
-    Blueprint{ .id = 30, .costs = { { { 4, 0, 0 }, { 3, 0, 0 }, { 3, 20, 0 }, { 2, 0, 19 } } } }
+    std::string name;
+    std::vector<Rule> rules;
 };
 
-// const std::vector<Blueprint> blueprints{
-//     Blueprint{ .id = 1, .costs = { { { 4, 0, 0 }, { 2, 0, 0 }, { 3, 14, 0 }, { 2, 0, 7 } } } },
-//     Blueprint{ .id = 2, .costs = { { { 2, 0, 0 }, { 3, 0, 0 }, { 3, 8, 0 }, { 3, 0, 12 } } } }
-// };
+using Part = std::array<int, 4>;
 
-struct State
+void parse(std::ifstream& ifs,
+           std::unordered_map<std::string, Workflow>& workflows,
+           std::vector<Part>& parts)
 {
-    std::array<uint8_t, 4> robots;
-    std::array<uint8_t, 4> materials;
-};
+    const std::unordered_map<char, int> indMap{ { 'x', 0 }, { 'm', 1 }, { 'a', 2 }, { 's', 3 } };
 
-int calculateTimeNeeded(const Blueprint& blueprint, const State& s, int index)
-{
-    int time = 0;
-    bool possible = true;
-    for (unsigned j = 0; j < blueprint.costs[index].size(); ++j)
+    // Workflows
+    while (ifs.good())
     {
-        if (blueprint.costs[index][j] == 0)
-            continue;
-
-        if (s.robots[j] == 0)
-        {
-            possible = false;
+        std::string line;
+        std::getline(ifs, line);
+        if (line.empty())
             break;
-        }
 
-        int materialNeeded = blueprint.costs[index][j] - s.materials[j];
-        time = std::max(time, ceil(materialNeeded, s.robots[j]));
-    }
-    return possible ? time + 1 : -1;
-}
-
-State getNextState(const Blueprint& blueprint, const State& s, int index, int time)
-{
-    State next = s;
-    for (unsigned j = 0; j < 4; ++j)
-    {
-        next.materials[j] += time * s.robots[j];
-        if (j < 3)
+        Workflow w;
+        auto pos = line.find("{");
+        w.name = line.substr(0, pos);
+        pos++;
+        while (true)
         {
-            next.materials[j] -= blueprint.costs[index][j];
+            auto next = line.find_first_of(",}", pos);
+            if (line[next] == '}')
+            {
+                w.rules.push_back({ .index = -1, .dst = line.substr(pos, next - pos) });
+                break;
+            }
+
+            Rule r;
+            r.index = indMap.at(line[pos]);
+            r.lt = line[pos + 1] == '<';
+
+            auto split = line.find(":", pos + 2);
+            r.value = std::stoi(line.substr(pos + 2, split - pos - 2));
+            r.dst = line.substr(split + 1, next - split - 1);
+
+            w.rules.push_back(r);
+            pos = next + 1;
         }
-    }
-    ++next.robots[index];
-    return next;
-}
 
-// DFS + early exit based on theoretical upper bound
-int crackGeodes(const Blueprint& blueprint, int steps)
-{
-    std::array<uint8_t, 4> limits{};
-    limits.back() = std::numeric_limits<uint8_t>::max();
-    for (const auto& c : blueprint.costs)
-    {
-        limits[0] = std::max<uint8_t>(limits[0], c[0]);
-        limits[1] = std::max<uint8_t>(limits[1], c[1]);
-        limits[2] = std::max<uint8_t>(limits[2], c[2]);
+        workflows.insert({ w.name, w });
     }
 
-    std::vector<std::pair<State, int>> stack{ { { { 1, 0, 0, 0 }, { 0, 0, 0, 0 } }, steps } };
-    int maxGeodes = 0;
-    while (not stack.empty())
+    // Parts
+    while (ifs.good())
     {
-        auto p = stack.back();
-        auto [s, stepsRemaining] = p;
-        stack.pop_back();
-
-        // Update the max number of geodes assuming no further robots are made
-        maxGeodes = std::max<int>(maxGeodes, s.materials.back() + s.robots.back() * stepsRemaining);
-
-        if (stepsRemaining <= 0)
+        std::string line;
+        std::getline(ifs, line);
+        if (line.empty())
             continue;
 
-        // Upper bound for cracked geodes (arithmetic progression)
-        int maxPossible = s.materials.back() +
-            stepsRemaining * (2 * s.robots.back() + stepsRemaining - 1) / 2;
-        if (maxPossible <= maxGeodes)
-            continue;
-
-        // Generate next states by assuming the ith robot is the next one to be built
-        for (int i = 0; i < 4; ++i)
+        size_t pos = 1;
+        Part p{};
+        bool done = false;
+        while (not done)
         {
-            if (s.robots[i] >= limits[i])
-                continue;
+            auto next = line.find_first_of(",}", pos);
+            if (line[next] == '}')
+                done = true;
 
-            int time = calculateTimeNeeded(blueprint, s, i);
-            if (time >= stepsRemaining or time < 0)
-                continue;
-
-            auto next = getNextState(blueprint, s, i, time);
-            int sr = stepsRemaining - time;
-            stack.push_back({ next, sr });
+            p[indMap.at(line[pos])] = std::stoi(line.substr(pos + 2, next - pos - 2));
+            pos = next + 1;
         }
+
+        parts.push_back(p);
     }
-    return maxGeodes;
 }
 
 std::string runSolution1(std::ifstream& ifs)
 {
-    long long totalQuality = 0;
-    for (const auto& b : blueprints)
+    std::unordered_map<std::string, Workflow> workflows;
+    std::vector<Part> parts;
+    parse(ifs, workflows, parts);
+
+    int tot = 0;
+    for (const auto& p : parts)
     {
-        totalQuality += (long long)b.id * crackGeodes(b, 24);
+        std::string cur = "in";
+        while (true)
+        {
+            if (cur == "R")
+                break;
+
+            if (cur == "A")
+            {
+                tot += p[0] + p[1] + p[2] + p[3];
+                break;
+            }
+
+            const auto& w = workflows.at(cur);
+            for (const auto& r : w.rules)
+            {
+                bool cond = r.index < 0;
+                if (r.lt)
+                {
+                    cond |= p[r.index] < r.value;
+                }
+                else
+                {
+                    cond |= p[r.index] > r.value;
+                }
+
+                if (cond)
+                {
+                    cur = r.dst;
+                    break;
+                }
+            }
+        }
     }
 
-    return std::to_string(totalQuality);
+    return std::to_string(tot);
+}
+
+long long count(const std::unordered_map<std::string, Workflow>& workflows,
+                std::string cur,
+                Part first,
+                Part last)
+{
+    if (cur == "R")
+        return 0;
+
+    if (cur == "A")
+    {
+        long long ret = 1;
+        ret *= std::max((long long)(last[0] - first[0] + 1), 0ll);
+        ret *= std::max((long long)(last[1] - first[1] + 1), 0ll);
+        ret *= std::max((long long)(last[2] - first[2] + 1), 0ll);
+        ret *= std::max((long long)(last[3] - first[3] + 1), 0ll);
+        return ret;
+    }
+
+    long long ret = 0;
+    const auto& w = workflows.at(cur);
+    for (const auto& r : w.rules)
+    {
+        if (r.index < 0)
+        {
+            ret += count(workflows, r.dst, first, last);
+        }
+        else if (r.lt)
+        {
+            if (first[r.index] >= r.value)
+                continue;
+
+            auto tmpLast = last;
+            tmpLast[r.index] = r.value - 1;
+            ret += count(workflows, r.dst, first, tmpLast);
+            first[r.index] = r.value;
+        }
+        else
+        {
+            if (last[r.index] <= r.value)
+                continue;
+
+            auto tmpFirst = first;
+            tmpFirst[r.index] = r.value + 1;
+            ret += count(workflows, r.dst, tmpFirst, last);
+            last[r.index] = r.value;
+        }
+    }
+
+    return ret;
 }
 
 std::string runSolution2(std::ifstream& ifs)
 {
-    long long totalQuality = 1;
-    for (int i = 0; i < 3; ++i)
-    {
-        totalQuality *= crackGeodes(blueprints[i], 32);
-    }
-
-    return std::to_string(totalQuality);
+    std::unordered_map<std::string, Workflow> workflows;
+    std::vector<Part> parts;
+    parse(ifs, workflows, parts);
+    return std::to_string(
+        count(workflows, "in", Part{ 1, 1, 1, 1 }, Part{ 4000, 4000, 4000, 4000 }));
 }
 } // namespace
 
