@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <fstream>
 #include <iostream>
 #include <limits>
@@ -14,81 +15,224 @@
 #include <vector>
 
 namespace {
-std::vector<int> parse(std::ifstream& ifs)
+struct Destination
 {
-    std::vector<int> vals;
+    int index;
+    int port;
+};
+
+struct Node
+{
+    int type; // -2 --> broad, -1 --> flip-flop, n --> conj
+    uint64_t memory;
+    std::vector<Destination> destinations;
+};
+
+std::vector<Node> parse(std::ifstream& ifs)
+{
+    std::vector<std::string> lines;
     while (ifs.good())
     {
-        int val = 0;
-        ifs >> val;
-        vals.push_back(val);
+        std::string line;
+        std::getline(ifs, line);
+        if (line.empty())
+            break;
+
+        lines.push_back(line);
     }
-    return vals;
+
+    std::unordered_map<std::string, int> indexing;
+    std::vector<Node> nodes(lines.size(), Node{});
+    std::vector<std::vector<std::string>> parsed(lines.size());
+    int index = 1;
+    for (int i = 0; i < (int)lines.size(); ++i)
+    {
+        auto& p = parsed[i];
+        auto end = lines[i].find(" ");
+        std::string s;
+        switch (lines[i][0])
+        {
+            case '%':
+                nodes[index].type = -1;
+                s = lines[i].substr(1, end - 1);
+                indexing.insert({ s, index++ });
+                break;
+            case '&':
+                nodes[index].type = 0;
+                s = lines[i].substr(1, end - 1);
+                indexing.insert({ s, index++ });
+                break;
+            default:
+                nodes[0].type = -2;
+                s = lines[i].substr(0, end);
+                indexing.insert({ s, 0 });
+                break;
+        }
+
+        p.push_back(s);
+        auto start = end + 4;
+        while (true)
+        {
+            end = lines[i].find(",", start);
+            p.push_back(lines[i].substr(start, end - start));
+            if (end == std::string::npos)
+                break;
+
+            start = end + 2;
+        }
+    }
+
+    for (const auto& p : parsed)
+    {
+        const auto& src = p.front();
+        // std::cout << "src: '" << src << "'" << std::endl;
+        const int src_ind = indexing.at(src);
+        for (int i = 1; i < (int)p.size(); ++i)
+        {
+            const auto& dst = p[i];
+            // std::cout << "'" << dst << "'" << std::endl;
+
+            auto dst_it = indexing.find(dst);
+            if (dst_it == indexing.end())
+            {
+                nodes.push_back(Node{ .type = -3 });
+                indexing.insert({ dst, index++ });
+            }
+
+            const int dst_ind = indexing.at(dst);
+            int port = 0;
+            if (nodes[dst_ind].type >= 0)
+            {
+                port = nodes[dst_ind].type++;
+            }
+
+            nodes[src_ind].destinations.push_back({ .index = dst_ind, .port = port });
+        }
+    }
+
+    // for (const auto& n : nodes)
+    // {
+    //     std::cout << n.type << ": ";
+    //     for (const auto& d : n.destinations)
+    //     {
+    //         std::cout << "(" << d.index << " " << d.port << ") ";
+    //     }
+    //     std::cout << std::endl;
+    // }
+
+    return nodes;
 }
 
+// button: send low
+// broadcaster: sends the received pulse
+// flip-flop (%): high -> nothing, low -> flips and send state
+// conjunction (&): if all high -> low, otherwise -> high
 std::string runSolution1(std::ifstream& ifs)
 {
-    const auto vals = parse(ifs);
-    std::vector<std::pair<int, bool>> mixed;
-    std::transform(vals.begin(), vals.end(), std::back_inserter(mixed), [](int v) {
-        return std::make_pair(v, false);
-    });
-
-    int index = 0;
-    for (unsigned step = 0; step < vals.size(); ++step)
+    auto nodes = parse(ifs);
+    long long lows = 0;
+    long long highs = 0;
+    for (int i = 0; i < 1000; ++i)
     {
-        while (mixed[index].second)
-            ++index;
+        lows++;
+        std::deque<std::pair<Destination, bool>> queue;
+        queue.push_back({ { .index = 0, .port = 0 }, false });
+        while (not queue.empty())
+        {
+            auto [dst, sig] = queue.front();
+            auto& n = nodes[dst.index];
+            if (n.type >= 0)
+            {
+                n.memory &= ~(1ull << dst.port);
+                n.memory |= (uint64_t)sig << dst.port;
 
-        int val = mixed[index].first;
-        int dst = (index + val) % ((int)vals.size() - 1);
-        if (dst < 0)
-            dst += (vals.size() - 1);
+                const bool b = not(n.memory == (1ull << n.type) - 1);
+                for (auto d : n.destinations)
+                {
+                    queue.push_back({ d, b });
+                }
 
-        mixed.erase(mixed.begin() + index);
-        mixed.insert(mixed.begin() + dst, { val, true });
+                if (b)
+                {
+                    highs += n.destinations.size();
+                }
+                else
+                {
+                    lows += n.destinations.size();
+                }
+            }
+            else if (n.type == -1)
+            {
+                if (not sig)
+                {
+                    n.memory ^= 1;
+                    for (auto d : n.destinations)
+                    {
+                        queue.push_back({ d, (bool)n.memory });
+                    }
+
+                    if (n.memory)
+                    {
+                        highs += n.destinations.size();
+                    }
+                    else
+                    {
+                        lows += n.destinations.size();
+                    }
+                }
+            }
+            else if (n.type == -2)
+            {
+                for (auto d : n.destinations)
+                {
+                    queue.push_back({ d, sig });
+                }
+
+                if (sig)
+                {
+                    highs += n.destinations.size();
+                }
+                else
+                {
+                    lows += n.destinations.size();
+                }
+            }
+
+            queue.pop_front();
+        }
     }
 
-    auto it = std::find_if(mixed.begin(), mixed.end(), [](auto p) { return p.first == 0; });
-    int zero = std::distance(mixed.begin(), it);
-    int a = mixed[(zero + 1000) % mixed.size()].first;
-    int b = mixed[(zero + 2000) % mixed.size()].first;
-    int c = mixed[(zero + 3000) % mixed.size()].first;
-    return std::to_string(a + b + c);
+    return std::to_string(lows * highs);
+}
+
+uint64_t findPeriod(const std::vector<Node>& nodes, int index)
+{
+    uint64_t bit = 0;
+    uint64_t other = 0;
+    for (auto d : nodes[index].destinations)
+    {
+        if (nodes[d.index].type >= 0)
+        {
+            bit = 1;
+            continue;
+        }
+
+        other = findPeriod(nodes, d.index);
+    }
+
+    return (other << 1) | bit;
 }
 
 std::string runSolution2(std::ifstream& ifs)
 {
-    constexpr long long key = 811589153;
-    const auto vals = parse(ifs);
+    auto nodes = parse(ifs);
 
-    std::vector<uint16_t> indices(vals.size());
-    std::iota(indices.begin(), indices.end(), 0);
-    for (int shuffle = 0; shuffle < 10; ++shuffle)
+    uint64_t ret = 1;
+    for (auto d : nodes[0].destinations)
     {
-        for (uint16_t index = 0; index < vals.size(); ++index)
-        {
-            const long long mix = vals[index] * key;
-            auto it = std::find(indices.begin(), indices.end(), index);
-            long long pos = std::distance(indices.begin(), it);
-            long long dst = (pos + mix) % ((long long)vals.size() - 1);
-            if (dst < 0)
-                dst += (long long)(vals.size() - 1);
-
-            // These could be replaced by single rotate
-            indices.erase(it);
-            indices.insert(indices.begin() + dst, index);
-        }
+        ret = std::lcm(ret, findPeriod(nodes, d.index));
     }
-
-    auto it = std::find(vals.begin(), vals.end(), 0);
-    auto zeroIndex = std::distance(vals.begin(), it);
-    auto offsetIt = std::find(indices.begin(), indices.end(), zeroIndex);
-    auto offset = std::distance(indices.begin(), offsetIt);
-    auto a = vals[indices[(offset + 1000) % vals.size()]];
-    auto b = vals[indices[(offset + 2000) % vals.size()]];
-    auto c = vals[indices[(offset + 3000) % vals.size()]];
-    return std::to_string((a + b + c) * key);
+    return std::to_string(ret);
 }
 } // namespace
 
@@ -111,7 +255,7 @@ int main(int argc, char** argv)
     const auto end = high_resolution_clock::now();
 
     std::cout << "Solution (part " << part << "): " << output << std::endl;
-    std::cout << "Elapsed time: " << duration_cast<milliseconds>(end - start).count() << "ms"
-              << std::endl;
+    std::cout << "Elapsed time: " << duration_cast<microseconds>(end - start).count() / 1000.0
+              << "ms" << std::endl;
     return 0;
 }
