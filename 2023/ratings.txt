@@ -40,8 +40,8 @@ Problem   | Difficulty    | Rating    | Runtime (ms)
 19.2      | ***           | ***       | 1.00
 20.1      | ***           | ***       | 0.60
 20.2      | ****          | ****      | 0.05
-21.1      |               |           |
-21.2      |               |           |
+21.1      | ***           | ***       | 0.15
+21.2      | *****         | *****     | 1.20
 22.1      |               |           |
 22.2      |               |           |
 23.1      |               |           |
@@ -53,18 +53,18 @@ Problem   | Difficulty    | Rating    | Runtime (ms)
 ? = could be optimized further
 ! = not counted towards total
 
-Total time: 83.30 ms
+Total time: 84.65 ms
 
 Best problems:
-1. Day 12: Hot Springs
-2. Day 20: Pulse Propagation
-3. Day 18: Lavaduct Lagoon
-4. Day 14: Parabolic Reflector Dish
-5. Day 10: Pipe Maze
+1. Day 21: Step Counter
+2. Day 12: Hot Springs
+3. Day 20: Pulse Propagation
+4. Day 18: Lavaduct Lagoon
+5. Day 14: Parabolic Reflector Dish
 
 Most difficult problems:
-1. Day 12: Hot Springs
-2. Day 18: Lavaduct Lagoon (generic version)
-3. Day 20: Pulse Propagation
-4. Day 10: Pipe Maze
-5. Day 5: If You Give A Seed A Fertilizer
+1. Day 21: Step Counter
+2. Day 12: Hot Springs
+3. Day 18: Lavaduct Lagoon (generic version)
+4. Day 20: Pulse Propagation
+5. Day 10: Pipe Maze

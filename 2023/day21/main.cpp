@@ -17,198 +17,358 @@
 #include <vector>
 
 namespace {
-struct Monkey
+std::vector<std::string> parse(std::ifstream& ifs)
 {
-    std::array<uint32_t, 2> monkeys;
-    char op;
-    std::optional<long long> value;
-};
-
-using Monkeys = std::unordered_map<uint32_t, Monkey>;
-
-uint32_t parseMonkeyId(std::ifstream& ifs)
-{
-    std::array<char, 4> buf{};
-    ifs >> buf[0];
-    ifs >> buf[1];
-    ifs >> buf[2];
-    ifs >> buf[3];
-    uint32_t id = 0;
-    std::memcpy(&id, buf.data(), 4 * sizeof(char));
-    return id;
-}
-
-Monkeys parse(std::ifstream& ifs)
-{
-    Monkeys monkeys;
+    std::vector<std::string> grid;
     while (ifs.good())
     {
-        Monkey m{};
-        uint32_t id = parseMonkeyId(ifs);
-        ifs.ignore(2);
-        if (std::isdigit(ifs.peek()))
+        std::string line;
+        std::getline(ifs, line);
+        if (line.empty())
+            break;
+
+        grid.push_back('#' + line + '#');
+    }
+
+    grid.insert(grid.begin(), std::string(grid[0].size(), '#'));
+    grid.push_back(std::string(grid[0].size(), '#'));
+    return grid;
+}
+
+std::pair<int, int> findStart(const std::vector<std::string>& grid)
+{
+    int row = 0;
+    int col = 0;
+    for (row = 1; row < (int)grid.size() - 1; ++row)
+    {
+        for (col = 1; col < (int)grid.size() - 1; ++col)
         {
-            long long val = 0;
-            ifs >> val;
-            m.value = val;
+            if (grid[row][col] == 'S')
+            {
+                return { row, col };
+            }
+        }
+    }
+
+    throw 1;
+    return {};
+}
+
+std::pair<int, int> count(std::vector<std::string> grid, int row, int col, int steps)
+{
+    constexpr std::array<std::pair<int, int>, 4> diffs{
+        { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }
+    };
+
+    std::vector<std::pair<int, int>> queue;
+    queue.push_back({ row, col });
+    grid[row][col] = 'e';
+    int even = 1;
+    int odd = 0;
+    for (int step = 1; step <= steps; ++step)
+    {
+        std::vector<std::pair<int, int>> next;
+        for (auto [r, c] : queue)
+        {
+            for (auto [rd, cd] : diffs)
+            {
+                int rr = r + rd;
+                int cc = c + cd;
+                if (grid[rr][cc] != '.')
+                    continue;
+
+                grid[rr][cc] = step % 2 ? 'o' : 'e';
+                next.push_back({ rr, cc });
+            }
+        }
+
+        queue = std::move(next);
+        if (step % 2 == 0)
+        {
+            even += queue.size();
         }
         else
         {
-            m.monkeys[0] = parseMonkeyId(ifs);
-            ifs.ignore(1);
-            ifs >> m.op;
-            ifs.ignore(1);
-            m.monkeys[1] = parseMonkeyId(ifs);
+            odd += queue.size();
         }
-        ifs.ignore(1);
-        monkeys[id] = m;
     }
-    return monkeys;
+
+    return { even, odd };
 }
 
-long long compute(Monkeys& monkeys, uint32_t id)
+std::pair<int, int> count2(std::vector<std::string>& grid, int row, int col, int steps)
 {
-    auto it = monkeys.find(id);
-    if (it == monkeys.end())
-        throw "Something went wrong!!";
+    constexpr std::array<std::pair<int, int>, 4> diffs{
+        { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }
+    };
 
-    auto& m = it->second;
-    if (m.value)
-        return *m.value;
-
-    auto a = compute(monkeys, m.monkeys[0]);
-    auto b = compute(monkeys, m.monkeys[1]);
-    switch (m.op)
+    std::vector<std::pair<int, int>> queue;
+    queue.push_back({ row, col });
+    grid[row][col] = 'e';
+    int even = 1;
+    int odd = 0;
+    for (int step = 1; step <= steps; ++step)
     {
-        case '+':
-            m.value = a + b;
-            break;
-        case '-':
-            m.value = a - b;
-            break;
-        case '*':
-            m.value = a * b;
-            break;
-        case '/':
-            m.value = a / b;
-            break;
-        default:
-            throw "Invalid operation";
+        std::vector<std::pair<int, int>> next;
+        for (auto [r, c] : queue)
+        {
+            for (auto [rd, cd] : diffs)
+            {
+                int rr = r + rd;
+                int cc = c + cd;
+                if (grid[rr][cc] != '.')
+                    continue;
+
+                grid[rr][cc] = step % 2 ? 'o' : 'e';
+                next.push_back({ rr, cc });
+            }
+        }
+
+        queue = std::move(next);
+        if (step % 2 == 0)
+        {
+            even += queue.size();
+        }
+        else
+        {
+            odd += queue.size();
+        }
     }
-    return *m.value;
+
+    return { even, odd };
 }
 
 std::string runSolution1(std::ifstream& ifs)
 {
-    auto monkeys = parse(ifs);
-    uint32_t root = 0;
-    const char buf[4] = { 'r', 'o', 'o', 't' };
-    std::memcpy(&root, buf, 4 * sizeof(char));
-    return std::to_string(compute(monkeys, root));
+    auto grid = parse(ifs);
+    auto [row, col] = findStart(grid);
+    auto [even, odd] = count(grid, row, col, 64);
+    (void)odd;
+    return std::to_string(even);
 }
 
-struct Fraction
+// Can be used to construct reference answer for smaller step sizes
+[[maybe_unused]] void reference(std::vector<std::string> grid, int steps)
 {
-    long long val;
-    long long div;
-};
+    int m = grid.size() - 2;
+    int n = (steps + m - 1) / m;
+    int k = 2 * n + 1;
 
-Fraction simplify(Fraction f)
-{
-    auto gcd = std::gcd(f.val, f.div);
-    return { f.val / gcd, f.div / gcd };
-}
+    std::cout << m << std::endl;
 
-Fraction operator+(Fraction a, Fraction b)
-{
-    auto lcm = std::lcm(a.div, b.div);
-    auto aMul = lcm / a.div;
-    auto bMul = lcm / b.div;
-    return simplify({ aMul * a.val + bMul * b.val, lcm });
-}
-
-Fraction operator-(Fraction a, Fraction b)
-{
-    auto lcm = std::lcm(a.div, b.div);
-    auto aMul = lcm / a.div;
-    auto bMul = lcm / b.div;
-    return simplify({ aMul * a.val - bMul * b.val, lcm });
-}
-
-Fraction operator*(Fraction a, Fraction b)
-{
-    return simplify({ a.val * b.val, a.div * b.div });
-}
-
-Fraction operator/(Fraction a, Fraction b)
-{
-    return simplify({ a.val * b.div, b.val * a.div });
-}
-
-// kx + b
-struct Expression
-{
-    Fraction k;
-    Fraction b;
-};
-
-Expression compute2(Monkeys& monkeys, uint32_t id)
-{
-    auto it = monkeys.find(id);
-    if (it == monkeys.end())
-        throw "Something went wrong!!";
-
-    constexpr char humn[4] = { 'h', 'u', 'm', 'n' };
-    if (std::memcmp(&id, humn, sizeof(uint32_t)) == 0)
-        return { .k = { 1, 1 }, .b = { 0, 1 } };
-
-    auto& m = it->second;
-    if (m.value)
-        return { .k = { 0, 1 }, .b = { *m.value, 1 } };
-
-    auto left = compute2(monkeys, m.monkeys[0]);
-    auto right = compute2(monkeys, m.monkeys[1]);
-    Expression exp{};
-    switch (m.op)
+    std::vector<std::string> mega_grid(m * k);
+    for (int i = 0; i < k; ++i)
     {
-        case '+':
-            exp.k = left.k + right.k;
-            exp.b = left.b + right.b;
-            break;
-        case '-':
-            exp.k = left.k - right.k;
-            exp.b = left.b - right.b;
-            break;
-        case '*':
-            if (left.k.val != 0 and right.k.val != 0)
-                throw "Only linear expressions are supported";
-
-            exp.k = left.k * right.b + right.k * left.b;
-            exp.b = left.b * right.b;
-            break;
-        case '/':
-            if (right.k.val != 0)
-                throw "Fractional expressions are not supported";
-
-            exp.k = left.k / right.b;
-            exp.b = left.b / right.b;
-            break;
-        default:
-            throw "Invalid operation";
+        for (int row = 1; row <= m; ++row)
+        {
+            mega_grid[i * m + row - 1] += "#";
+            for (int j = 0; j < k; ++j)
+            {
+                mega_grid[i * m + row - 1] += grid[row].substr(1, m);
+            }
+            mega_grid[i * m + row - 1] += "#";
+        }
     }
-    return exp;
+
+    mega_grid.insert(mega_grid.begin(), std::string(mega_grid[0].size(), '#'));
+    mega_grid.insert(mega_grid.end(), std::string(mega_grid[0].size(), '#'));
+
+    int start = mega_grid.size() / 2;
+    auto [even, odd] = count2(mega_grid, start, start, steps);
+    (void)even;
+
+    // Count evens and odds for sub-blocks
+    for (int i = 0; i < k; ++i)
+    {
+        for (int j = 0; j < k; ++j)
+        {
+            int o = 0;
+            int e = 0;
+
+            for (int row = 0; row < m; ++row)
+            {
+                for (int col = 0; col < m; ++col)
+                {
+                    const char c = mega_grid[i * m + row + 1][j * m + col + 1];
+                    if (c == 'o')
+                        ++o;
+
+                    if (c == 'e')
+                        ++e;
+                }
+            }
+
+            std::cout << "(o: " << o << ", e: " << e << ") ";
+        }
+        std::cout << std::endl;
+
+        // std::cout << s << std::endl;
+    }
+
+    std::cout << "Reference: " << odd << ", (even: " << even << ")" << std::endl;
 }
 
 std::string runSolution2(std::ifstream& ifs)
 {
-    auto monkeys = parse(ifs);
-    uint32_t root = 0;
-    const char buf[4] = { 'r', 'o', 'o', 't' };
-    std::memcpy(&root, buf, 4 * sizeof(char));
-    const auto left = compute2(monkeys, monkeys[root].monkeys[0]);
-    const auto right = compute2(monkeys, monkeys[root].monkeys[1]);
-    const auto val = (right.b - left.b) / (left.k - right.k);
-    return std::to_string(val.val / val.div);
+    constexpr long long steps = 26501365;
+    // constexpr long long steps = 65 + 3 * 131;
+
+    auto grid = parse(ifs);
+    auto [sRow, sCol] = findStart(grid);
+    grid[sRow][sCol] = '.';
+
+    // reference(grid, steps);
+
+    const long long n = steps / 131;
+
+    long long even = 0;
+    long long odd = 0;
+    long long tot = 0;
+
+    constexpr int first = 1;
+    constexpr int last = 131;
+    constexpr int mid = (first + last) / 2;
+
+    constexpr int mid_steps = 130;
+    constexpr int corner_steps0 = 64;
+    constexpr int corner_steps1 = 195;
+    constexpr int enough_steps = 200;
+
+    // Full grids
+    {
+        std::tie(even, odd) = count(grid, sRow, sCol, enough_steps);
+
+        // std::cout << "o: " << odd << ", e: " << even << std::endl;
+
+        long long ec = 4 * (n / 2) + 4 * ((n - 2) / 2) * ((n - 2) / 2 + 1);
+        long long oc = 1 + 4 * ((n - 1) / 2) * ((n - 1) / 2 + 1);
+        tot += ec * even;
+        tot += oc * odd;
+    }
+
+    const bool parity = n % 2 == 0;
+
+    // up
+    {
+        std::tie(even, odd) = count(grid, last, mid, mid_steps);
+        if (parity)
+            std::swap(even, odd);
+
+        // std::cout << "o: " << odd << ", e: " << even << std::endl;
+
+        tot += odd;
+    }
+
+    // right
+    {
+        std::tie(even, odd) = count(grid, mid, first, mid_steps);
+        if (parity)
+            std::swap(even, odd);
+
+        // std::cout << "o: " << odd << ", e: " << even << std::endl;
+
+        tot += odd;
+    }
+
+    // down
+    {
+        std::tie(even, odd) = count(grid, first, mid, mid_steps);
+        if (parity)
+            std::swap(even, odd);
+
+        // std::cout << "o: " << odd << ", e: " << even << std::endl;
+
+        tot += odd;
+    }
+
+    // left
+    {
+        std::tie(even, odd) = count(grid, mid, last, mid_steps);
+        if (parity)
+            std::swap(even, odd);
+
+        // std::cout << "o: " << odd << ", e: " << even << std::endl;
+
+        tot += odd;
+    }
+
+    // up-right
+    {
+        std::tie(even, odd) = count(grid, last, first, corner_steps0);
+        if (parity)
+            std::swap(even, odd);
+
+        // std::cout << "o: " << odd << ", e: " << even << std::endl;
+
+        tot += n * odd;
+
+        std::tie(even, odd) = count(grid, last, first, corner_steps1);
+        if (not parity)
+            std::swap(even, odd);
+
+        // std::cout << "o: " << odd << ", e: " << even << std::endl;
+
+        tot += (n - 1) * odd;
+    }
+
+    // down-right
+    {
+        std::tie(even, odd) = count(grid, first, first, corner_steps0);
+        if (parity)
+            std::swap(even, odd);
+
+        // std::cout << "o: " << odd << ", e: " << even << std::endl;
+
+        tot += n * odd;
+
+        std::tie(even, odd) = count(grid, first, first, corner_steps1);
+        if (not parity)
+            std::swap(even, odd);
+
+        // std::cout << "o: " << odd << ", e: " << even << std::endl;
+
+        tot += (n - 1) * odd;
+    }
+
+    // down-left
+    {
+        std::tie(even, odd) = count(grid, first, last, corner_steps0);
+        if (parity)
+            std::swap(even, odd);
+
+        // std::cout << "o: " << odd << ", e: " << even << std::endl;
+
+        tot += n * odd;
+
+        std::tie(even, odd) = count(grid, first, last, corner_steps1);
+        if (not parity)
+            std::swap(even, odd);
+
+        // std::cout << "o: " << odd << ", e: " << even << std::endl;
+
+        tot += (n - 1) * odd;
+    }
+
+    // up-left
+    {
+        std::tie(even, odd) = count(grid, last, last, corner_steps0);
+        if (parity)
+            std::swap(even, odd);
+
+        // std::cout << "o: " << odd << ", e: " << even << std::endl;
+
+        tot += n * odd;
+
+        std::tie(even, odd) = count(grid, last, last, corner_steps1);
+        if (not parity)
+            std::swap(even, odd);
+
+        // std::cout << "o: " << odd << ", e: " << even << std::endl;
+
+        tot += (n - 1) * odd;
+    }
+
+    return std::to_string(tot);
 }
 } // namespace
 
