@@ -42,8 +42,8 @@ Problem   | Difficulty    | Rating    | Runtime (ms)
 20.2      | ****          | ****      | 0.05
 21.1      | ***           | ***       | 0.15
 21.2      | *****         | *****     | 1.20
-22.1      |               |           |
-22.2      |               |           |
+22.1      | **            | ***       | 2.50 ?
+22.2      | ***           | ***       | 240.0 !?
 23.1      |               |           |
 23.2      |               |           |
 24.1      |               |           |
@@ -53,7 +53,7 @@ Problem   | Difficulty    | Rating    | Runtime (ms)
 ? = could be optimized further
 ! = not counted towards total
 
-Total time: 84.65 ms
+Total time: 87.15 ms
 
 Best problems:
 1. Day 21: Step Counter

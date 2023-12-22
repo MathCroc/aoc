@@ -16,216 +16,245 @@
 #include <vector>
 
 namespace {
-using Graph = std::vector<std::string>;
-
-std::pair<Graph, std::string> parse(std::ifstream& ifs)
+struct Range
 {
-    Graph graph;
-    while (ifs.good())
-    {
-        std::string line;
-        std::getline(ifs, line);
-        if (line.empty())
-            break;
-
-        graph.push_back(line);
-    }
-
-    std::string directions;
-    std::getline(ifs, directions);
-    return { graph, directions };
-}
-
-struct Pos
-{
-    int row;
-    int col;
-    int rowDiff;
-    int colDiff;
+    int first;
+    int last;
 };
 
-Pos next(Pos p)
+struct Cube
 {
-    return { p.row + p.rowDiff, p.col + p.colDiff, p.rowDiff, p.colDiff };
+    Range x;
+    Range y;
+    Range z;
+};
+
+std::vector<Cube> parse(std::ifstream& ifs)
+{
+    std::vector<Cube> cubes;
+    while (ifs.good())
+    {
+        Cube c{};
+        ifs >> c.x.first;
+        ifs.ignore(1);
+        ifs >> c.y.first;
+        ifs.ignore(1);
+        ifs >> c.z.first;
+        ifs.ignore(1);
+        ifs >> c.x.last;
+        ifs.ignore(1);
+        ifs >> c.y.last;
+        ifs.ignore(1);
+        ifs >> c.z.last;
+
+        cubes.push_back(c);
+    }
+
+    // for (auto c : cubes)
+    // {
+    //     std::cout << "(" << c.x.first << ", " << c.x.last << ") "
+    //               << "(" << c.y.first << ", " << c.y.last << ") "
+    //               << "(" << c.z.first << ", " << c.z.last << ")" << std::endl;
+    // }
+
+    return cubes;
 }
 
-void move(const Graph& graph, Pos& pos, int count)
+bool overlap(Range a, Range b)
 {
-    while (count > 0)
-    {
-        auto n = next(pos);
-        if (n.row < 0 or n.row >= (int)graph.size() or n.col < 0 or
-            n.col >= (int)graph[n.row].size() or graph[n.row][n.col] == ' ')
-        {
-            if (n.rowDiff > 0)
-                n.row = 0;
-            else if (n.rowDiff < 0)
-                n.row = graph.size() - 1;
-            else if (n.colDiff > 0)
-                n.col = 0;
-            else
-                n.col = graph[n.row].size() - 1;
+    if (a.last < b.first)
+        return false;
 
-            while (graph[n.row][n.col] == ' ')
-                n = next(n);
-        }
+    if (a.first > b.last)
+        return false;
 
-        if (graph[n.row][n.col] == '#')
-            return;
-
-        pos = n;
-        --count;
-    }
-}
-
-void turn(Pos& pos, char c)
-{
-    int tmp = pos.rowDiff;
-    if (c == 'R')
-    {
-        pos.rowDiff = pos.colDiff;
-        pos.colDiff = -tmp;
-    }
-    else
-    {
-        pos.rowDiff = -pos.colDiff;
-        pos.colDiff = tmp;
-    }
-}
-
-int dirIndex(const Pos& pos)
-{
-    int dir = 0;
-    if (pos.rowDiff > 0)
-        dir = 1;
-    else if (pos.colDiff < 0)
-        dir = 2;
-    else if (pos.rowDiff < 0)
-        dir = 3;
-    return dir;
+    return true;
 }
 
 std::string runSolution1(std::ifstream& ifs)
 {
-    auto [graph, dirs] = parse(ifs);
-    auto init = graph[0].find('.');
-    Pos pos{ 0, (int)init, 0, 1 };
+    auto cubes = parse(ifs);
+    std::sort(cubes.begin(), cubes.end(), [](const auto& a, const auto& b) {
+        return a.z.first < b.z.first;
+    });
 
-    // Add padding
-    size_t maxLen = 0;
-    for (const auto& row : graph)
+    Range xRange{};
+    Range yRange{};
+    for (const auto& c : cubes)
     {
-        maxLen = std::max(maxLen, row.size());
+        xRange.first = std::min(xRange.first, c.x.first);
+        yRange.first = std::min(yRange.first, c.y.first);
+        xRange.last = std::max(xRange.last, c.x.last);
+        yRange.last = std::max(yRange.last, c.y.last);
     }
 
-    for (auto& row : graph)
+    std::vector<std::vector<int>> zs(xRange.last - xRange.first + 1,
+                                     std::vector<int>(yRange.last - yRange.first + 1, 0));
+
+    for (auto& c : cubes)
     {
-        auto diff = maxLen - row.size();
-        if (diff > 0)
+        int maxZ = 0;
+        for (int x = c.x.first; x <= c.x.last; ++x)
         {
-            row.insert(row.size(), diff, ' ');
+            for (int y = c.y.first; y <= c.y.last; ++y)
+            {
+                maxZ = std::max(maxZ, zs[x][y]);
+            }
+        }
+
+        const int z = maxZ + 1;
+        const int zDiff = c.z.last - c.z.first;
+        c.z.first = z;
+        c.z.last = z + zDiff;
+        for (int x = c.x.first; x <= c.x.last; ++x)
+        {
+            for (int y = c.y.first; y <= c.y.last; ++y)
+            {
+                zs[x][y] = c.z.last;
+            }
         }
     }
 
-    const char* cur = dirs.data();
-    const char* end = dirs.data() + dirs.size();
-    while (cur != end)
-    {
-        int count = 0;
-        auto [ptr, ec] = std::from_chars(cur, end, count);
-        move(graph, pos, count);
-        if (ptr == end)
-            break;
+    std::sort(cubes.begin(), cubes.end(), [](const auto& a, const auto& b) {
+        return a.z.first < b.z.first;
+    });
 
-        cur = ptr;
-        turn(pos, *cur);
-        ++cur;
+    std::vector<int> nr_supporters(cubes.size(), 0);
+    for (int i = 0; i < (int)cubes.size(); ++i)
+    {
+        for (int j = 0; j < i; ++j)
+        {
+            if (cubes[j].z.last != cubes[i].z.first - 1)
+                continue;
+
+            nr_supporters[i] += overlap(cubes[i].x, cubes[j].x) and overlap(cubes[i].y, cubes[j].y);
+        }
     }
 
-    return std::to_string(1000 * (pos.row + 1) + 4 * (pos.col + 1) + dirIndex(pos));
+    int count = 0;
+    for (int i = 0; i < (int)cubes.size(); ++i)
+    {
+        bool can_remove = true;
+        for (int j = i + 1; j < (int)cubes.size(); ++j)
+        {
+            if (cubes[j].z.first > cubes[i].z.last + 1)
+                break;
+
+            if (overlap(cubes[i].x, cubes[j].x) and overlap(cubes[i].y, cubes[j].y) and
+                nr_supporters[j] == 1)
+            {
+                can_remove = false;
+                break;
+            }
+        }
+
+        count += can_remove;
+    }
+
+    return std::to_string(count);
 }
 
-constexpr int sideLen = 50;
-
-// side label --> row/50, col/50
-const std::unordered_map<char, std::pair<int, int>> sides{ { 'a', { 0, 1 } }, { 'b', { 0, 2 } },
-                                                           { 'c', { 1, 1 } }, { 'd', { 2, 0 } },
-                                                           { 'e', { 2, 1 } }, { 'f', { 3, 0 } } };
-
-// side label --> sides at right, down, left, up
-const std::unordered_map<char, std::string> neighbours{
-    { 'a', { 'b', 'c', 'd', 'f' } }, { 'b', { 'e', 'c', 'a', 'f' } },
-    { 'c', { 'b', 'e', 'd', 'a' } }, { 'd', { 'e', 'f', 'a', 'c' } },
-    { 'e', { 'b', 'f', 'd', 'c' } }, { 'f', { 'e', 'b', 'a', 'd' } }
-};
-
-void move2(const Graph& graph, Pos& pos, char& side, int count)
+void fall(std::vector<std::unordered_set<int>>& supporters, std::vector<bool>& fallen, int index)
 {
-    char nextSide = side;
-    while (count > 0)
+    std::vector<int> falling;
+    for (int j = index + 1; j < (int)supporters.size(); ++j)
     {
-        auto n = next(pos);
-        if (n.row < 0 or n.row >= sideLen or n.col < 0 or n.col >= sideLen)
+        auto it = supporters[j].find(index);
+        if (it == supporters[j].end())
+            continue;
+
+        supporters[j].erase(it);
+        if (supporters[j].empty())
         {
-            n.row = n.row % sideLen;
-            if (n.row < 0)
-            {
-                n.row += sideLen;
-            }
-
-            n.col = n.col % sideLen;
-            if (n.col < 0)
-            {
-                n.col += sideLen;
-            }
-
-            char prevSide = side;
-            nextSide = neighbours.at(side)[dirIndex(pos)];
-            int arrives = neighbours.at(nextSide).find(prevSide);
-
-            // Rotate until the facing direction is opposite to the arrival direction
-            while (dirIndex(n) != ((arrives + 2) % 4))
-            {
-                turn(n, 'R');
-                int tmp = n.row;
-                n.row = n.col;
-                n.col = sideLen - 1 - tmp;
-            }
+            fallen[j] = true;
+            falling.push_back(j);
         }
+    }
 
-        if (graph[n.row + sideLen * sides.at(nextSide).first]
-                 [n.col + sideLen * sides.at(nextSide).second] == '#')
-            return;
-
-        pos = n;
-        side = nextSide;
-        --count;
+    for (int j : falling)
+    {
+        fall(supporters, fallen, j);
     }
 }
 
 std::string runSolution2(std::ifstream& ifs)
 {
-    const auto [graph, dirs] = parse(ifs);
-    Pos pos{ 0, 0, 0, 1 };
-    char side = 'a';
+    auto cubes = parse(ifs);
+    std::sort(cubes.begin(), cubes.end(), [](const auto& a, const auto& b) {
+        return a.z.first < b.z.first;
+    });
 
-    const char* cur = dirs.data();
-    const char* end = dirs.data() + dirs.size();
-    while (cur != end)
+    Range xRange{};
+    Range yRange{};
+    for (const auto& c : cubes)
     {
-        int count = 0;
-        auto [ptr, ec] = std::from_chars(cur, end, count);
-        move2(graph, pos, side, count);
-        if (ptr == end)
-            break;
-
-        cur = ptr;
-        turn(pos, *cur);
-        ++cur;
+        xRange.first = std::min(xRange.first, c.x.first);
+        yRange.first = std::min(yRange.first, c.y.first);
+        xRange.last = std::max(xRange.last, c.x.last);
+        yRange.last = std::max(yRange.last, c.y.last);
     }
 
-    return std::to_string(1000 * (pos.row + 1 + sideLen * sides.at(side).first) +
-                          4 * (pos.col + 1 + sideLen * sides.at(side).second) + dirIndex(pos));
+    std::vector<std::vector<int>> zs(xRange.last - xRange.first + 1,
+                                     std::vector<int>(yRange.last - yRange.first + 1, 0));
+
+    for (auto& c : cubes)
+    {
+        int maxZ = 0;
+        for (int x = c.x.first; x <= c.x.last; ++x)
+        {
+            for (int y = c.y.first; y <= c.y.last; ++y)
+            {
+                maxZ = std::max(maxZ, zs[x][y]);
+            }
+        }
+
+        const int z = maxZ + 1;
+        const int zDiff = c.z.last - c.z.first;
+        c.z.first = z;
+        c.z.last = z + zDiff;
+        for (int x = c.x.first; x <= c.x.last; ++x)
+        {
+            for (int y = c.y.first; y <= c.y.last; ++y)
+            {
+                zs[x][y] = c.z.last;
+            }
+        }
+    }
+
+    std::sort(cubes.begin(), cubes.end(), [](const auto& a, const auto& b) {
+        return a.z.first < b.z.first;
+    });
+
+    std::vector<std::unordered_set<int>> supporters(cubes.size());
+    for (int i = 0; i < (int)cubes.size(); ++i)
+    {
+        for (int j = 0; j < i; ++j)
+        {
+            if (cubes[j].z.last != cubes[i].z.first - 1)
+                continue;
+
+            if (overlap(cubes[i].x, cubes[j].x) and overlap(cubes[i].y, cubes[j].y))
+            {
+                supporters[i].insert(j);
+            }
+        }
+    }
+
+    int count = 0;
+    for (int i = 0; i < (int)cubes.size(); ++i)
+    {
+        auto sup = supporters;
+        std::vector<bool> fallen(cubes.size(), false);
+        fall(sup, fallen, i);
+
+        int a = 0;
+        for (int j = i + 1; j < (int)fallen.size(); ++j)
+            a += fallen[j];
+
+        count += a;
+    }
+
+    return std::to_string(count);
 }
 } // namespace
 
