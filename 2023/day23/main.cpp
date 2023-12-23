@@ -30,472 +30,227 @@ std::vector<std::string> parse(std::ifstream& ifs)
     return out;
 }
 
-uint64_t hash(int row, int col)
+void dfs(std::vector<std::string>& grid, int row, int col, int& longest, int steps)
 {
-    return ((uint64_t)row << 32) | ((uint64_t)col & 0xFFFF'FFFF);
-}
-
-std::pair<int, int> decompose(uint64_t h)
-{
-    return { (int)(h >> 32), (int)(h & 0xFFFF'FFFF) };
-}
-
-uint64_t computeProposal(const std::unordered_set<uint64_t>& elves,
-                         const std::vector<int>& order,
-                         int row,
-                         int col)
-{
-    int n = 0;
-    for (int y = -1; y <= 1; ++y)
-    {
-        for (int x = -1; x <= 1; ++x)
-        {
-            if (x == 0 and y == 0)
-                continue;
-
-            n += elves.find(hash(row + y, col + x)) != elves.end();
-        }
-    }
-
-    if (n == 0)
-        return hash(row, col);
-
-    for (int i : order)
-    {
-        int count = 0;
-        switch (i)
-        {
-            case 0:
-                for (int x = -1; x <= 1; ++x)
-                {
-                    count += elves.find(hash(row - 1, col + x)) != elves.end();
-                }
-                if (count == 0)
-                {
-                    return hash(row - 1, col);
-                }
-                break;
-            case 1:
-                for (int x = -1; x <= 1; ++x)
-                {
-                    count += elves.find(hash(row + 1, col + x)) != elves.end();
-                }
-                if (count == 0)
-                {
-                    return hash(row + 1, col);
-                }
-                break;
-            case 2:
-                for (int x = -1; x <= 1; ++x)
-                {
-                    count += elves.find(hash(row + x, col - 1)) != elves.end();
-                }
-                if (count == 0)
-                {
-                    return hash(row, col - 1);
-                }
-                break;
-            case 3:
-                for (int x = -1; x <= 1; ++x)
-                {
-                    count += elves.find(hash(row + x, col + 1)) != elves.end();
-                }
-                if (count == 0)
-                {
-                    return hash(row, col + 1);
-                }
-                break;
-            default:
-                throw 1;
-        }
-    }
-
-    return hash(row, col);
-}
-
-void computeProposal(const std::vector<std::string>& elves,
-                     const std::vector<int>& order,
-                     int row,
-                     int col,
-                     std::vector<std::string>& out)
-{
-    constexpr std::array<std::pair<int, int>, 4> next{
-        { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } }
+    constexpr std::array<std::pair<int, int>, 4> diffs{
+        { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }
     };
+    constexpr std::array<char, 4> allowed{ 'v', '^', '>', '<' };
 
-    std::array<bool, 4> canMove;
-    canMove.fill(true);
-
-    if (elves[row - 1][col] == '#')
+    if (row == (int)grid.size() - 1)
     {
-        canMove[0] = false;
-    }
-
-    if (elves[row - 1][col + 1] == '#')
-    {
-        canMove[0] = false;
-        canMove[3] = false;
-    }
-
-    if (elves[row][col + 1] == '#')
-    {
-        canMove[3] = false;
-    }
-
-    if (elves[row + 1][col + 1] == '#')
-    {
-        canMove[1] = false;
-        canMove[3] = false;
-    }
-
-    if (elves[row + 1][col] == '#')
-    {
-        canMove[1] = false;
-    }
-
-    if (elves[row + 1][col - 1] == '#')
-    {
-        canMove[1] = false;
-        canMove[2] = false;
-    }
-
-    if (elves[row][col - 1] == '#')
-    {
-        canMove[2] = false;
-    }
-
-    if (elves[row - 1][col - 1] == '#')
-    {
-        canMove[0] = false;
-        canMove[2] = false;
-    }
-
-    if (std::all_of(canMove.begin(), canMove.end(), [](bool b) { return b; }))
-    {
-        out[row][col] = '#';
+        longest = std::max(longest, steps);
         return;
     }
 
-    for (int i : order)
+    const char tile = grid[row][col];
+    grid[row][col] = 'x';
+
+    for (int i = 0; i < (int)diffs.size(); ++i)
     {
-        if (canMove[i])
+        auto [dr, dc] = diffs[i];
+        int rr = row + dr;
+        int cc = col + dc;
+
+        if (rr < 0 or rr >= (int)grid.size() or cc < 0 or cc >= (int)grid[rr].size())
+            continue;
+
+        if (grid[rr][cc] == '.' or grid[rr][cc] == allowed[i])
         {
-            out[row + next[i].first][col + next[i].second] |= 1 << i;
-            return;
+            dfs(grid, rr, cc, longest, steps + 1);
         }
     }
 
-    out[row][col] = '#';
+    grid[row][col] = tile;
 }
 
-bool update(std::vector<std::string>& out)
+[[maybe_unused]] void dfs2(std::vector<std::string>& grid,
+                           int row,
+                           int col,
+                           int& longest,
+                           int steps)
 {
-    constexpr std::array<std::pair<int, int>, 4> next{
-        { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } }
+    constexpr std::array<std::pair<int, int>, 4> diffs{
+        { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }
     };
 
-    bool someMoved = false;
-    for (int row = 0; row < (int)out.size(); ++row)
+    if (row == (int)grid.size() - 1)
     {
-        for (int col = 0; col < (int)out[row].size(); ++col)
-        {
-            if (out[row][col] == 0 or out[row][col] == '#')
-                continue;
-
-            if (__builtin_popcount(out[row][col]) == 1)
-            {
-                out[row][col] = '#';
-                someMoved = true;
-            }
-            else
-            {
-                for (int i = 0; i < 4; ++i)
-                {
-                    if (out[row][col] & (1 << i))
-                    {
-                        out[row - next[i].first][col - next[i].second] = '#';
-                    }
-                }
-                out[row][col] = 0;
-            }
-        }
+        longest = std::max(longest, steps);
+        return;
     }
-    return someMoved;
+
+    const char tile = grid[row][col];
+    grid[row][col] = 'x';
+
+    for (int i = 0; i < (int)diffs.size(); ++i)
+    {
+        auto [dr, dc] = diffs[i];
+        int rr = row + dr;
+        int cc = col + dc;
+
+        if (rr < 0 or rr >= (int)grid.size() or cc < 0 or cc >= (int)grid[rr].size())
+            continue;
+
+        if (grid[rr][cc] == '#' or grid[rr][cc] == 'x')
+            continue;
+
+        dfs2(grid, rr, cc, longest, steps + 1);
+    }
+
+    grid[row][col] = tile;
 }
 
-void grow(std::vector<std::string>& out)
+using Graph = std::unordered_map<uint64_t, std::vector<std::pair<uint64_t, int>>>;
+
+bool isCross(const std::vector<std::string>& grid, int row, int col)
 {
-    if (std::any_of(out.front().begin(), out.front().end(), [](char c) { return c == '#'; }))
-    {
-        size_t len = out.front().size();
-        out.insert(out.begin(), std::string(len, 0));
-    }
+    if (row == 0 or row == (int)grid.size() - 1)
+        return true;
 
-    if (std::any_of(out.back().begin(), out.back().end(), [](char c) { return c == '#'; }))
-    {
-        size_t len = out.back().size();
-        out.insert(out.end(), std::string(len, 0));
-    }
-
-    if (std::any_of(out.begin(), out.end(), [](const auto& row) { return row[0] == '#'; }))
-    {
-        for (auto& row : out)
-        {
-            row.insert(row.begin(), 0);
-        }
-    }
-
-    if (std::any_of(out.begin(), out.end(), [](const auto& row) { return row.back() == '#'; }))
-    {
-        for (auto& row : out)
-        {
-            row.insert(row.end(), 0);
-        }
-    }
+    int count = 0;
+    count += grid[row - 1][col] != '#';
+    count += grid[row + 1][col] != '#';
+    count += grid[row][col - 1] != '#';
+    count += grid[row][col + 1] != '#';
+    return count > 2;
 }
 
-[[maybe_unused]] void print(const std::unordered_set<uint64_t>& elves)
+void buildGraph(Graph& g,
+                std::vector<std::string>& grid,
+                uint64_t row,
+                uint64_t col,
+                int steps,
+                uint64_t prev)
 {
-    int minX = std::numeric_limits<int>::max();
-    int maxX = std::numeric_limits<int>::min();
-    int minY = std::numeric_limits<int>::max();
-    int maxY = std::numeric_limits<int>::min();
-    for (auto h : elves)
+    constexpr std::array<std::pair<int, int>, 4> diffs{
+        { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }
+    };
+
+    if (row == grid.size() - 1)
     {
-        auto [row, col] = decompose(h);
-        minX = std::min(minX, col);
-        maxX = std::max(maxX, col);
-        minY = std::min(minY, row);
-        maxY = std::max(maxY, row);
+        const uint64_t cur = std::numeric_limits<uint64_t>::max();
+        g[prev].push_back({ cur, steps });
+        return;
     }
 
-    std::cout << std::endl;
-    for (int y = minY; y <= maxY; ++y)
+    const bool cross = isCross(grid, row, col);
+    if (cross)
     {
-        for (int x = minX; x <= maxX; ++x)
+        const uint64_t cur = (row << 32) | col;
+        if (prev != 0)
         {
-            if (elves.find(hash(y, x)) != elves.end())
-            {
-                std::cout << '#';
-            }
-            else
-            {
-                std::cout << ".";
-            }
+            g[prev].push_back({ cur, steps });
+            return;
         }
-        std::cout << std::endl;
+
+        prev = cur;
     }
+
+    const char tile = grid[row][col];
+    grid[row][col] = 'x';
+
+    for (int i = 0; i < (int)diffs.size(); ++i)
+    {
+        auto [dr, dc] = diffs[i];
+        int rr = row + dr;
+        int cc = col + dc;
+
+        if (rr < 0 or rr >= (int)grid.size() or cc < 0 or cc >= (int)grid[rr].size())
+            continue;
+
+        if (grid[rr][cc] == '#' or grid[rr][cc] == 'x')
+            continue;
+
+        buildGraph(g, grid, rr, cc, steps + 1, prev);
+    }
+
+    grid[row][col] = tile;
+}
+
+void findLongest(const Graph& g,
+                 std::unordered_set<uint64_t>& visited,
+                 uint64_t cur,
+                 int& longest,
+                 int steps)
+{
+    if (cur == std::numeric_limits<uint64_t>::max())
+    {
+        longest = std::max(longest, steps);
+        return;
+    }
+
+    visited.insert(cur);
+    for (auto [next, dist] : g.at(cur))
+    {
+        if (visited.find(next) != visited.end())
+            continue;
+
+        findLongest(g, visited, next, longest, steps + dist);
+    }
+
+    visited.erase(cur);
 }
 
 std::string runSolution1(std::ifstream& ifs)
 {
-    std::vector<int> order{ 0, 1, 2, 3 };
-
     auto grid = parse(ifs);
-    int nrElves = 0;
-    for (int row = 0; row < (int)grid.size(); ++row)
-    {
-        for (int col = 0; col < (int)grid[row].size(); ++col)
-        {
-            if (grid[row][col] == '#')
-            {
-                ++nrElves;
-            }
-        }
-    }
-
-    for (int round = 0; round < 10; ++round)
-    {
-        grow(grid);
-        std::vector<std::string> next(grid.size(), std::string(grid[0].size(), 0));
-        for (int row = 1; row < (int)grid.size() - 1; ++row)
-        {
-            for (int col = 1; col < (int)grid[row].size() - 1; ++col)
-            {
-                if (grid[row][col] == '#')
-                {
-                    computeProposal(grid, order, row, col, next);
-                }
-            }
-        }
-
-        if (not update(next))
-            break;
-
-        grid = std::move(next);
-        std::rotate(order.begin(), order.begin() + 1, order.end());
-    }
-
-    int minX = std::numeric_limits<int>::max();
-    int maxX = std::numeric_limits<int>::min();
-    int minY = std::numeric_limits<int>::max();
-    int maxY = std::numeric_limits<int>::min();
-    for (int row = 0; row < (int)grid.size(); ++row)
-    {
-        for (int col = 0; col < (int)grid[row].size(); ++col)
-        {
-            if (grid[row][col] == '#')
-            {
-                minX = std::min(minX, col);
-                maxX = std::max(maxX, col);
-                minY = std::min(minY, row);
-                maxY = std::max(maxY, row);
-            }
-        }
-    }
-    return std::to_string((maxX - minX + 1) * (maxY - minY + 1) - nrElves);
-}
-
-[[maybe_unused]] std::string origRunSolution1(std::ifstream& ifs)
-{
-    std::vector<int> order{ 0, 1, 2, 3 };
-
-    const auto grid = parse(ifs);
-    std::unordered_set<uint64_t> elves;
-    for (int row = 0; row < (int)grid.size(); ++row)
-    {
-        for (int col = 0; col < (int)grid[row].size(); ++col)
-        {
-            if (grid[row][col] == '#')
-            {
-                elves.insert(hash(row, col));
-            }
-        }
-    }
-
-    for (int round = 0; round < 10; ++round)
-    {
-        // print(elves);
-        std::unordered_map<uint64_t, int> counts;
-        std::unordered_map<uint64_t, uint64_t> proposals;
-        for (auto h : elves)
-        {
-            auto [row, col] = decompose(h);
-            uint64_t prop = computeProposal(elves, order, row, col);
-            counts[prop]++;
-            proposals[h] = prop;
-        }
-
-        std::unordered_set<uint64_t> next;
-        for (auto [h, prop] : proposals)
-        {
-            if (counts[prop] <= 1)
-            {
-                next.insert(prop);
-            }
-            else
-            {
-                next.insert(h);
-            }
-        }
-
-        elves = std::move(next);
-        std::rotate(order.begin(), order.begin() + 1, order.end());
-    }
-
-    // print(elves);
-
-    int minX = std::numeric_limits<int>::max();
-    int maxX = std::numeric_limits<int>::min();
-    int minY = std::numeric_limits<int>::max();
-    int maxY = std::numeric_limits<int>::min();
-    for (auto h : elves)
-    {
-        auto [row, col] = decompose(h);
-        minX = std::min(minX, col);
-        maxX = std::max(maxX, col);
-        minY = std::min(minY, row);
-        maxY = std::max(maxY, row);
-    }
-
-    return std::to_string((maxX - minX + 1) * (maxY - minY + 1) - elves.size());
+    int row = 0;
+    int col = 1;
+    int longest = 0;
+    dfs(grid, row, col, longest, 0);
+    return std::to_string(longest);
 }
 
 std::string runSolution2(std::ifstream& ifs)
 {
-    std::vector<int> order{ 0, 1, 2, 3 };
-
     auto grid = parse(ifs);
-    int round = 1;
-    for (; true; ++round)
+
+    std::vector<std::pair<int, int>> crosses;
+    crosses.push_back({ 0, 1 });
+    for (int r = 1; r < (int)grid.size() - 1; ++r)
     {
-        grow(grid);
-        std::vector<std::string> next(grid.size(), std::string(grid[0].size(), 0));
-        for (int row = 1; row < (int)grid.size() - 1; ++row)
+        for (int c = 1; c < (int)grid[r].size() - 1; ++c)
         {
-            for (int col = 1; col < (int)grid[row].size() - 1; ++col)
+            if (grid[r][c] == '#')
+                continue;
+
+            int count = 0;
+            count += grid[r - 1][c] != '#';
+            count += grid[r + 1][c] != '#';
+            count += grid[r][c - 1] != '#';
+            count += grid[r][c + 1] != '#';
+            if (count > 2)
             {
-                if (grid[row][col] == '#')
-                {
-                    computeProposal(grid, order, row, col, next);
-                }
+                crosses.push_back({ r, c });
             }
         }
-
-        if (not update(next))
-            break;
-
-        grid = std::move(next);
-        std::rotate(order.begin(), order.begin() + 1, order.end());
     }
 
-    return std::to_string(round);
+    Graph g;
+    for (auto [r, c] : crosses)
+    {
+        buildGraph(g, grid, r, c, 0, 0);
+    }
+
+    // for (auto [a, b] : g)
+    // {
+    //     std::cout << a << ": ";
+    //     for (auto [next, steps] : b)
+    //     {
+    //         std::cout << "(" << next << ", " << steps << ") ";
+    //     }
+    //     std::cout << std::endl;
+    // }
+
+    std::cout << "Build graph done" << std::endl;
+
+    int longest = 0;
+    std::unordered_set<uint64_t> visited;
+    findLongest(g, visited, 1, longest, 0);
+    return std::to_string(longest);
 }
 
-[[maybe_unused]] std::string origRunSolution2(std::ifstream& ifs)
-{
-    std::vector<int> order{ 0, 1, 2, 3 };
-
-    const auto grid = parse(ifs);
-    std::unordered_set<uint64_t> elves;
-    for (int row = 0; row < (int)grid.size(); ++row)
-    {
-        for (int col = 0; col < (int)grid[row].size(); ++col)
-        {
-            if (grid[row][col] == '#')
-            {
-                elves.insert(hash(row, col));
-            }
-        }
-    }
-
-    int round = 1;
-    for (; true; ++round)
-    {
-        std::unordered_map<uint64_t, int> counts;
-        std::unordered_map<uint64_t, uint64_t> proposals;
-        for (auto h : elves)
-        {
-            auto [row, col] = decompose(h);
-            uint64_t prop = computeProposal(elves, order, row, col);
-            counts[prop]++;
-            proposals[h] = prop;
-        }
-
-        int moves = 0;
-        std::unordered_set<uint64_t> next;
-        for (auto [h, prop] : proposals)
-        {
-            if (counts[prop] <= 1)
-            {
-                moves += prop != h;
-                next.insert(prop);
-            }
-            else
-            {
-                next.insert(h);
-            }
-        }
-
-        if (moves == 0)
-            break;
-
-        elves = std::move(next);
-        std::rotate(order.begin(), order.begin() + 1, order.end());
-    }
-
-    return std::to_string(round);
-}
 } // namespace
 
 int main(int argc, char** argv)
@@ -518,6 +273,6 @@ int main(int argc, char** argv)
 
     std::cout << "Solution (part " << part << "): " << output << std::endl;
     std::cout << "Elapsed time: " << std::setprecision(3)
-              << duration_cast<microseconds>(end - start).count() / 1000.0 << "ms" << std::endl;
+              << duration_cast<milliseconds>(end - start).count() << "ms" << std::endl;
     return 0;
 }
