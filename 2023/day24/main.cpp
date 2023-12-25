@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
@@ -14,375 +15,275 @@
 #include <vector>
 
 namespace {
-std::vector<std::string> parse(std::ifstream& ifs)
+struct Hailstone
 {
-    std::vector<std::string> out;
+    std::array<__int128, 3> pos;
+    std::array<__int128, 3> vel;
+};
+
+std::vector<Hailstone> parse(std::ifstream& ifs)
+{
+    std::vector<Hailstone> out;
     while (ifs.good())
     {
-        std::string line;
-        std::getline(ifs, line);
-        if (line.empty())
-            break;
+        long long tmp{};
+        Hailstone h{};
+        ifs >> tmp;
+        h.pos[0] = tmp;
+        ifs.ignore(2);
+        ifs >> tmp;
+        h.pos[1] = tmp;
+        ifs.ignore(2);
+        ifs >> tmp;
+        h.pos[2] = tmp;
+        ifs.ignore(3);
+        ifs >> tmp;
+        h.vel[0] = tmp;
+        ifs.ignore(2);
+        ifs >> tmp;
+        h.vel[1] = tmp;
+        ifs.ignore(2);
+        ifs >> tmp;
+        h.vel[2] = tmp;
 
-        out.push_back(line);
+        out.push_back(h);
     }
+
     return out;
 }
 
-struct Pos
-{
-    int row;
-    int col;
-};
-
-Pos operator+(Pos a, Pos b)
-{
-    return Pos{ a.row + b.row, a.col + b.col };
-}
-
-[[maybe_unused]] bool operator==(Pos a, Pos b)
-{
-    return a.row == b.row and a.col == b.col;
-}
-
-Pos wrap(Pos p, int rows, int cols)
-{
-    if (p.row == 0)
-        p.row = rows - 2;
-    else if (p.row == rows - 1)
-        p.row = 1;
-    else if (p.col == 0)
-        p.col = cols - 2;
-    else if (p.col == cols - 1)
-        p.col = 1;
-    return p;
-}
-
-struct Blizzard
-{
-    Pos pos;
-    Pos dir;
-};
-
-using Blizzards = std::vector<Blizzard>;
-
-uint64_t hash(Pos p)
-{
-    return (((uint64_t)p.row & 0xFFFF) << 16) | ((uint64_t)p.col & 0xFFFF);
-}
-
-[[maybe_unused]] uint64_t hash(Pos p, uint32_t step)
-{
-    return ((uint64_t)step << 32) | hash(p);
-}
-
-Blizzards getBlizzards(const std::vector<std::string>& grid)
-{
-    Blizzards out;
-
-    for (int row = 0; row < (int)grid.size(); ++row)
-    {
-        for (int col = 0; col < (int)grid[row].size(); ++col)
-        {
-            switch (grid[row][col])
-            {
-                case '>':
-                    out.push_back({ { row, col }, { 0, 1 } });
-                    break;
-                case 'v':
-                    out.push_back({ { row, col }, { 1, 0 } });
-                    break;
-                case '<':
-                    out.push_back({ { row, col }, { 0, -1 } });
-                    break;
-                case '^':
-                    out.push_back({ { row, col }, { -1, 0 } });
-                    break;
-                default:
-                    break;
-            }
-        }
-    }
-    return out;
-}
-
-using State = std::vector<bool>;
-
-std::vector<State> getStates(const std::vector<std::string>& grid, Blizzards& blizzards)
-{
-    const int rows = grid.size();
-    const int cols = grid[0].size();
-
-    const uint32_t period = std::lcm(rows - 2, cols - 2);
-    std::vector<State> states(period, State(rows * cols, false));
-    for (uint32_t i = 0; i < period; ++i)
-    {
-        for (const auto& b : blizzards)
-        {
-            states[i][cols * b.pos.row + b.pos.col] = true;
-        }
-
-        for (auto& b : blizzards)
-        {
-            b.pos = wrap(b.pos + b.dir, rows, cols);
-        }
-    }
-    return states;
-}
-
-// Optimizations
-// Baseline: 55 ms
-// Use std::vector<State> for visited: 15 ms
-uint32_t navigate(const std::vector<State>& states, Pos start, Pos target, uint32_t stepsSoFar)
-{
-    const int rows = std::abs(start.row - target.row) + 2;
-    const int cols = states[0].size() / rows;
-    const uint32_t period = states.size();
-    uint32_t stateIndex = stepsSoFar % period;
-
-    const std::array<Pos, 5> neighbours{ { { 0, 0 }, { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 } } };
-
-    std::vector<State> visited(states.size(), State(rows * cols, false));
-    std::vector<Pos> queue{ start };
-    uint32_t step = 0;
-    while (not queue.empty())
-    {
-        if (visited[stateIndex][cols * target.row + target.col])
-            break;
-
-        std::vector<Pos> nextQueue;
-        nextQueue.reserve(queue.size() * neighbours.size());
-        ++stateIndex;
-        if (stateIndex >= period)
-            stateIndex = 0;
-
-        for (Pos p : queue)
-        {
-            for (Pos n : neighbours)
-            {
-                Pos next = p + n;
-                if (not(next == p))
-                {
-                    if (next.row <= 0 or next.row >= rows - 1 or next.col <= 0 or
-                        next.col >= cols - 1)
-                        continue;
-                }
-
-                const int index = cols * next.row + next.col;
-
-                // Check if blizzard
-                if (states[stateIndex][index])
-                    continue;
-
-                if (visited[stateIndex][index])
-                    continue;
-
-                visited[stateIndex][index] = true;
-                nextQueue.push_back(next);
-            }
-        }
-
-        queue = std::move(nextQueue);
-        ++step;
-    }
-
-    if (queue.empty())
-        throw 1;
-
-    return step;
-}
-
-// struct Pos
+// struct Hailstone
 // {
-//     int row;
-//     int col;
+//     std::array<__float128, 3> pos;
+//     std::array<__float128, 3> vel;
 // };
 
-// Pos operator+(Pos a, Pos b)
+// std::vector<Hailstone> parse(std::ifstream& ifs)
 // {
-//     return Pos{ a.row + b.row, a.col + b.col };
-// }
-
-// bool operator==(Pos a, Pos b)
-// {
-//     return a.row == b.row and a.col == b.col;
-// }
-
-// Pos wrap(Pos p, int rows, int cols)
-// {
-//     if (p.row == 0)
-//         p.row = rows - 2;
-//     else if (p.row == rows - 1)
-//         p.row = 1;
-//     else if (p.col == 0)
-//         p.col = cols - 2;
-//     else if (p.col == cols - 1)
-//         p.col = 1;
-//     return p;
-// }
-
-// struct Blizzard
-// {
-//     Pos pos;
-//     Pos dir;
-// };
-
-// using Blizzards = std::vector<Blizzard>;
-
-// uint64_t hash(Pos p)
-// {
-//     return (((uint64_t)p.row & 0xFFFF) << 16) | ((uint64_t)p.col & 0xFFFF);
-// }
-
-// uint64_t hash(Pos p, uint32_t step)
-// {
-//     return ((uint64_t)step << 32) | hash(p);
-// }
-
-// Blizzards getBlizzards(const std::vector<std::string>& grid)
-// {
-//     Blizzards out;
-
-//     for (int row = 0; row < (int)grid.size(); ++row)
+//     std::vector<Hailstone> out;
+//     while (ifs.good())
 //     {
-//         for (int col = 0; col < (int)grid[row].size(); ++col)
-//         {
-//             switch (grid[row][col])
-//             {
-//                 case '>':
-//                     out.push_back({ { row, col }, { 0, 1 } });
-//                     break;
-//                 case 'v':
-//                     out.push_back({ { row, col }, { 1, 0 } });
-//                     break;
-//                 case '<':
-//                     out.push_back({ { row, col }, { 0, -1 } });
-//                     break;
-//                 case '^':
-//                     out.push_back({ { row, col }, { -1, 0 } });
-//                     break;
-//                 default:
-//                     break;
-//             }
-//         }
+//         double tmp{};
+//         Hailstone h{};
+//         ifs >> tmp;
+//         h.pos[0] = tmp;
+//         ifs.ignore(2);
+//         ifs >> tmp;
+//         h.pos[1] = tmp;
+//         ifs.ignore(2);
+//         ifs >> tmp;
+//         h.pos[2] = tmp;
+//         ifs.ignore(3);
+//         ifs >> tmp;
+//         h.vel[0] = tmp;
+//         ifs.ignore(2);
+//         ifs >> tmp;
+//         h.vel[1] = tmp;
+//         ifs.ignore(2);
+//         ifs >> tmp;
+//         h.vel[2] = tmp;
+
+//         out.push_back(h);
 //     }
+
 //     return out;
 // }
 
-// using State = std::vector<std::vector<bool>>;
+// low <= a/b <= high
+bool between(__int128 low, __int128 high, __int128 a, __int128 b)
+{
+    if (b < 0)
+    {
+        // std::cout << "flip" << std::endl;
+        return between(-high, -low, a, -b);
+    }
 
-// State makeState(uint32_t rows, uint32_t cols)
-// {
-//     return std::vector<std::vector<bool>>(rows, std::vector<bool>(cols, false));
-// }
+    // std::cout << (long long)(low * b) << " " << (long long)a << " " << (long long)(high * b)
+    //           << std::endl;
+    return low * b <= a and a <= high * b;
+}
 
-// std::vector<State> getStates(const std::vector<std::string>& grid, Blizzards& blizzards)
-// {
-//     const int rows = grid.size();
-//     const int cols = grid[0].size();
-
-//     const uint32_t period = std::lcm(rows - 2, cols - 2);
-//     std::vector<std::vector<std::vector<bool>>> states(period, makeState(rows, cols));
-//     for (uint32_t i = 0; i < period; ++i)
-//     {
-//         for (const auto& b : blizzards)
-//         {
-//             states[i][b.pos.row][b.pos.col] = true;
-//         }
-
-//         for (auto& b : blizzards)
-//         {
-//             b.pos = wrap(b.pos + b.dir, rows, cols);
-//         }
-//     }
-//     return states;
-// }
-
-// uint32_t navigate(const std::vector<State>& states, Pos start, Pos target, uint32_t stepsSoFar)
-// {
-//     const int rows = states[0].size();
-//     const int cols = states[0][0].size();
-//     const uint32_t period = states.size();
-//     uint32_t stateIndex = stepsSoFar % period;
-
-//     const std::array<Pos, 5> neighbours{ { { 0, 0 }, { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 } } };
-
-//     std::unordered_set<uint64_t> visited;
-//     std::vector<Pos> queue{ start };
-//     uint32_t step = 0;
-//     while (not queue.empty())
-//     {
-//         std::vector<Pos> nextQueue;
-//         nextQueue.reserve(queue.size() * neighbours.size());
-//         ++stateIndex;
-//         if (stateIndex >= period)
-//             stateIndex = 0;
-
-//         for (Pos p : queue)
-//         {
-//             if (p == target)
-//                 goto FOUND;
-
-//             for (Pos n : neighbours)
-//             {
-//                 Pos next = p + n;
-//                 if (not(next == p))
-//                 {
-//                     if (next.row <= 0 or next.row >= rows - 1 or next.col <= 0 or
-//                         next.col >= cols - 1)
-//                         continue;
-//                 }
-
-//                 // Check if blizzard
-//                 if (states[stateIndex][next.row][next.col])
-//                     continue;
-
-//                 uint64_t h = hash(next, stateIndex);
-//                 if (visited.find(h) != visited.end())
-//                     continue;
-
-//                 visited.insert(h);
-//                 nextQueue.push_back(next);
-//             }
-//         }
-
-//         queue = std::move(nextQueue);
-//         ++step;
-//     }
-
-//     if (queue.empty())
-//         throw 1;
-
-// FOUND:
-
-//     return step;
-// }
-
+// too low: 11631
 std::string runSolution1(std::ifstream& ifs)
 {
-    const auto grid = parse(ifs);
-    auto blizzards = getBlizzards(grid);
-    const auto states = getStates(grid, blizzards);
+    // constexpr __int128 low = 7;
+    // constexpr __int128 high = 27;
+    // (void)low;
+    // (void)high;
 
-    const int rows = grid.size();
-    const int cols = grid[0].size();
-    return std::to_string(navigate(states, Pos{ 0, 1 }, Pos{ rows - 2, cols - 2 }, 0) + 1);
+    constexpr __int128 low{ 200000000000000ll };
+    constexpr __int128 high{ 400000000000000ll };
+
+    const auto hailstones = parse(ifs);
+
+    int count = 0;
+    for (int i = 0; i < (int)hailstones.size(); ++i)
+    {
+        const auto& h0 = hailstones[i];
+
+        for (int j = i + 1; j < (int)hailstones.size(); ++j)
+        {
+            const auto& h1 = hailstones[j];
+
+            if (h0.vel[1] * h1.vel[0] == h0.vel[0] * h1.vel[1])
+            {
+                // std::cout << "parallel" << std::endl;
+                continue;
+            }
+
+            const __int128 ax = h0.vel[0] * h1.vel[0] * (h1.pos[1] - h0.pos[1]);
+            const __int128 bx = h0.vel[1] * h1.vel[0] - h0.vel[0] * h1.vel[1];
+            const __int128 cx = h0.vel[0] * h1.vel[1] * h1.pos[0] -
+                h0.vel[1] * h1.vel[0] * h0.pos[0];
+            const __int128 dx = ax - cx;
+
+            const __int128 ay = h0.vel[1] * h1.vel[1] * (h1.pos[0] - h0.pos[0]);
+            const __int128 by = h0.vel[0] * h1.vel[1] - h0.vel[1] * h1.vel[0];
+            const __int128 cy = h0.vel[1] * h1.vel[0] * h1.pos[1] -
+                h0.vel[0] * h1.vel[1] * h0.pos[1];
+            const __int128 dy = ay - cy;
+
+            // if (low > dx / bx or high < dx / bx or low > dy / by or high < dy / by)
+            // {
+            //     std::cout << "out of of bounds " << (long long)dx << " " << (long long)dy
+            //               << std::endl;
+            //     continue;
+            // }
+
+            if (not between(low, high, dx, bx) or not between(low, high, dy, by))
+            {
+                // std::cout << "out of of bounds " << (long long)dx << " " << (long long)dy
+                //           << std::endl;
+                continue;
+            }
+
+            const __int128 t0 = (dx - bx * h0.pos[0]) / (bx * h0.vel[0]);
+            const __int128 t1 = (dx - bx * h1.pos[0]) / (bx * h1.vel[0]);
+            if (t0 <= 0 or t1 <= 0)
+            {
+                // std::cout << "In the past " << std::endl;
+                continue;
+            }
+
+            // std::cout << "ok" << std::endl;
+            ++count;
+
+            // const __int128 dot0 = h0.vel[0] * (h1.pos[0] - h0.pos[0]) +
+            //     h0.vel[1] * (h1.pos[1] - h0.pos[1]);
+            // const __int128 dot1 = h1.vel[0] * (h0.pos[0] - h1.pos[0]) +
+            //     h1.vel[1] * (h0.pos[1] - h1.pos[1]);
+
+            // std::cout << dot0 << " " << dot1 << std::endl;
+
+            // count += std::abs(dot0) >= std::abs(dot1) ? dot0 > 0 : dot1 > 0;
+        }
+    }
+    return std::to_string(count);
+}
+
+// Returns a vector `result` of size 3 where:
+// Referring to the equation ax + by = gcd(a, b)
+//     result[0] is gcd(a, b)
+//     result[1] is x
+//     result[2] is y
+std::array<long long, 3> bezout(long long a, long long b)
+{
+    long long s = 0;
+    long long old_s = 1;
+    long long t = 1;
+    long long old_t = 0;
+    long long r = b;
+    long long old_r = a;
+
+    while (r != 0)
+    {
+        long long quotient = old_r / r;
+        // We are overriding the value of r, before that we store it"s current
+        // value in temp variable, later we assign it to old_r
+        long long temp = r;
+        r = old_r - quotient * r;
+        old_r = temp;
+
+        // We treat s and t in the same manner we treated r
+        temp = s;
+        s = old_s - quotient * s;
+        old_s = temp;
+
+        temp = t;
+        t = old_t - quotient * t;
+        old_t = temp;
+    }
+
+    return { old_r, old_s, old_t };
+}
+
+std::array<long long, 2> crt(const std::vector<std::pair<long long, long long>>& mods)
+{
+    long long x = mods[0].first;
+    long long m = mods[0].second;
+    // for (int i = 1; i < (int)mods.size(); ++i)
+    // {
+    //     const auto tmp = bezout(m, mods[i].second);
+    //     const long long gcd = tmp[0];
+    //     const long long a = tmp[1];
+    //     const long long b = tmp[2];
+
+    //     if (x % gcd != mods[i].first % gcd)
+    //         return { -1, -1 };
+
+    //     x = (x * b * mods[i].second + mods[i].first * a * m) / gcd;
+    //     m = m * mods[i].second / gcd;
+    // }
+
+    for (int i = 1; i < 10; ++i)
+    {
+        if (mods[i].second == 0)
+            continue;
+
+        const auto tmp = bezout(m, mods[i].second);
+        const long long gcd = tmp[0];
+        const long long a = tmp[1];
+        const long long b = tmp[2];
+
+        if (x % gcd != mods[i].first % gcd)
+            return { -1, -1 };
+
+        x = (x * b * mods[i].second + mods[i].first * a * m) / gcd;
+        m = m * mods[i].second / gcd;
+    }
+
+    for (int i = 10; i < (int)mods.size(); ++i)
+    {
+        if (mods[i].second == 0)
+            continue;
+
+        if ((x - mods[i].first) % mods[i].second)
+            return { -1, -1 };
+    }
+
+    return { x, m };
 }
 
 std::string runSolution2(std::ifstream& ifs)
 {
-    const auto grid = parse(ifs);
-    auto blizzards = getBlizzards(grid);
-    const auto states = getStates(grid, blizzards);
+    const auto hailstones = parse(ifs);
 
-    const int rows = grid.size();
-    const int cols = grid[0].size();
+    for (int dx = -5000; dx <= 5000; ++dx)
+    {
+        std::vector<std::pair<long long, long long>> mods;
+        for (const auto& h : hailstones)
+        {
+            mods.push_back({ h.pos[0], h.vel[0] - dx });
+        }
 
-    uint32_t steps = navigate(states, Pos{ 0, 1 }, Pos{ rows - 2, cols - 2 }, 0) + 1;
-    steps += navigate(states, Pos{ rows - 1, cols - 2 }, Pos{ 1, 1 }, steps) + 1;
-    steps += navigate(states, Pos{ 0, 1 }, Pos{ rows - 2, cols - 2 }, steps) + 1;
+        auto [x, m] = crt(mods);
+        if (m != -1)
+        {
+            std::cout << x << " " << m << std::endl;
+        }
+    }
 
-    return std::to_string(steps);
+    return "";
 }
 } // namespace
 

@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -15,184 +16,13 @@
 #include <vector>
 
 namespace {
-std::vector<int> fromStr(const std::string& a)
+using Graph = std::unordered_map<int, std::unordered_map<int, int>>;
+
+Graph parse(std::ifstream& ifs)
 {
-    std::vector<int> out(a.size());
-    for (int i = 0; i < (int)a.size(); ++i)
-    {
-        switch (a[i])
-        {
-            case '0':
-                out[i] = 0;
-                break;
-            case '1':
-                out[i] = 1;
-                break;
-            case '2':
-                out[i] = 2;
-                break;
-            case '-':
-                out[i] = -1;
-                break;
-            case '=':
-                out[i] = -2;
-                break;
-            default:
-                throw 1;
-        }
-    }
-
-    std::reverse(out.begin(), out.end());
-    return out;
-}
-
-std::string toStr(const std::vector<int>& a)
-{
-    std::string out(a.size(), ' ');
-    for (int i = 0; i < (int)a.size(); ++i)
-    {
-        switch (a[i])
-        {
-            case 0:
-                out[i] = '0';
-                break;
-            case 1:
-                out[i] = '1';
-                break;
-            case 2:
-                out[i] = '2';
-                break;
-            case -1:
-                out[i] = '-';
-                break;
-            case -2:
-                out[i] = '=';
-                break;
-            default:
-                throw 1;
-        }
-    }
-
-    std::reverse(out.begin(), out.end());
-    return out;
-}
-
-std::vector<int> add(const std::vector<int>& a, const std::vector<int>& b)
-{
-    if (a.size() < b.size())
-        return add(b, a);
-
-    std::vector<int> out;
-    int carry = 0;
-    for (int i = 0; i < (int)b.size(); ++i)
-    {
-        int sum = carry + a[i] + b[i];
-
-        carry = 0;
-        while (sum > 2)
-        {
-            ++carry;
-            sum -= 5;
-        }
-
-        while (sum < -2)
-        {
-            --carry;
-            sum += 5;
-        }
-
-        out.push_back(sum);
-    }
-
-    for (int i = b.size(); i < (int)a.size(); ++i)
-    {
-        int sum = carry + a[i];
-        carry = 0;
-        while (sum > 2)
-        {
-            ++carry;
-            sum -= 5;
-        }
-
-        while (sum < -2)
-        {
-            --carry;
-            sum += 5;
-        }
-
-        out.push_back(sum);
-    }
-
-    while (carry > 0)
-    {
-        int sum = carry;
-        carry = 0;
-        while (sum > 2)
-        {
-            sum -= 5;
-            ++carry;
-        }
-
-        out.push_back(sum);
-    }
-
-    while (carry < 0)
-    {
-        int sum = carry;
-        carry = 0;
-        while (sum < -2)
-        {
-            sum += 5;
-            --carry;
-        }
-
-        out.push_back(sum);
-    }
-    return out;
-}
-
-// long long fromSnafu(std::string s)
-// {
-//     std::reverse(s.begin(), s.end());
-//     long long value = 0;
-//     long long mul = 1;
-//     for (char c : s)
-//     {
-//         int tmp = 0;
-//         switch (c)
-//         {
-//             case '0':
-//                 tmp = 0;
-//                 break;
-//             case '1':
-//                 tmp = 1;
-//                 break;
-//             case '2':
-//                 tmp = 2;
-//                 break;
-//             case '-':
-//                 tmp = -1;
-//                 break;
-//             case '=':
-//                 tmp = -2;
-//                 break;
-//             default:
-//                 throw 1;
-//         }
-//         value += mul * tmp;
-//         mul *= 5;
-//     }
-//     return value;
-// }
-
-// std::string toSnafu(long long value)
-// {
-
-// }
-
-std::string runSolution1(std::ifstream& ifs)
-{
-    std::vector<int> sum;
+    Graph g;
+    std::unordered_map<std::string, int> mapping;
+    int index = 0;
     while (ifs.good())
     {
         std::string line;
@@ -200,15 +30,114 @@ std::string runSolution1(std::ifstream& ifs)
         if (line.empty())
             break;
 
-        sum = add(sum, fromStr(line));
+        auto pos = line.find(":");
+        std::string key = line.substr(0, pos);
+        if (mapping.find(key) == mapping.end())
+        {
+            mapping.insert({ key, index++ });
+        }
+
+        int keyIndex = mapping.at(key);
+
+        pos += 2;
+        while (pos < line.size())
+        {
+            auto end = line.find(" ", pos);
+            auto n = line.substr(pos, end - pos);
+            if (mapping.find(n) == mapping.end())
+            {
+                mapping.insert({ n, index++ });
+            }
+
+            int nIndex = mapping.at(n);
+            g[keyIndex].insert({ nIndex, 1 });
+            g[nIndex].insert({ keyIndex, 1 });
+
+            if (end == std::string::npos)
+                break;
+
+            pos = end + 1;
+        }
+    }
+    return g;
+}
+
+void contract(Graph& g, std::unordered_map<int, int>& counts)
+{
+    auto keyIt = std::next(g.begin(), std::rand() % g.size());
+    auto nIt = std::next(keyIt->second.begin(), std::rand() % keyIt->second.size());
+
+    int key = keyIt->first;
+    int n = nIt->first;
+
+    for (auto [alter, count] : g.at(n))
+    {
+        if (alter == key)
+            continue;
+
+        auto it = keyIt->second.find(alter);
+        if (it == keyIt->second.end())
+        {
+            keyIt->second.insert({ alter, count });
+            g.at(alter)[key] = count;
+        }
+        else
+        {
+            it->second += count;
+            g.at(alter)[key] += count;
+        }
+
+        g.at(alter).erase(n);
     }
 
-    return toStr(sum);
+    counts[key] += counts[n];
+    keyIt->second.erase(n);
+    g.erase(n);
+    counts.erase(n);
+}
+
+// Idea: contract edges until only two vertices are remaining.
+// If there are exactly 3 remaining edges between these two vertices, then
+// the desired cut has been found. The number of vertices merged to those two
+// remaining ones tell the number of nodes in each partition.
+std::string runSolution1(std::ifstream& ifs)
+{
+    const auto g = parse(ifs);
+    std::unordered_map<int, int> counts;
+    for (const auto& [key, ns] : g)
+    {
+        counts.insert({ key, 1 });
+        (void)ns;
+    }
+
+    while (true)
+    {
+        auto gTmp = g;
+        auto countTmp = counts;
+        while (gTmp.size() > 2)
+        {
+            contract(gTmp, countTmp);
+        }
+
+        if (gTmp.begin()->second.begin()->second == 3)
+        {
+            long long mul = 1;
+            for (auto [key, count] : countTmp)
+            {
+                (void)key;
+                mul *= count;
+            }
+
+            return std::to_string(mul);
+        }
+    }
+
+    return "";
 }
 
 std::string runSolution2(std::ifstream& ifs)
 {
-    return "Todo";
+    return "Merry Xmas!";
 }
 } // namespace
 
