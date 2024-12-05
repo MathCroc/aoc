@@ -90,7 +90,6 @@ std::string runSolution1(std::ifstream& ifs)
     return std::to_string(count);
 }
 
-// Note: this solution requires edited input file where do() and don't() are on a separate lines
 std::string runSolution2(std::ifstream& ifs)
 {
     const auto grid = parse(ifs);
