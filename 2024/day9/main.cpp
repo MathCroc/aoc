@@ -108,6 +108,7 @@ std::string runSolution2(std::ifstream& ifs)
 {
     const std::string filemap = parse(ifs);
 
+    // { block size, starting index }
     std::vector<std::pair<int, int>> empties;
     std::vector<std::pair<int, int>> files;
     int index = 0;
@@ -128,6 +129,7 @@ std::string runSolution2(std::ifstream& ifs)
         index += val;
     }
 
+    // Merge consecutive empty blocks
     for (size_t i = 0; i < empties.size() - 1; ++i)
     {
         auto& cur = empties[i];
@@ -160,6 +162,7 @@ std::string runSolution2(std::ifstream& ifs)
             }
         }
 
+        // Update the checksum with the sum of arithmetic progression
         checksum += i * (uint64_t)size * (uint64_t)(2 * start + size - 1) / 2;
     }
 
