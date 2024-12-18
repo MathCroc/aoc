@@ -34,8 +34,8 @@ Problem   | Difficulty    | Rating    | Runtime (ms)
 16.2      | ***           | ***       | 20
 17.1      | *             | **        | 0
 17.2      | ****          | ****      | 0
-18.1      |               |           |
-18.2      |               |           |
+18.1      | **            | **        | 0
+18.2      | **            | ***       | 0
 19.1      |               |           |
 19.2      |               |           |
 20.1      |               |           |
@@ -52,15 +52,15 @@ Problem   | Difficulty    | Rating    | Runtime (ms)
 
 
 Best problems:
-1. Chronospatial Computer (day 17 part 2)
-2. Restroom Redoubt       (day 14 part 2)
+1. Restroom Redoubt       (day 14 part 2)
+2. Chronospatial Computer (day 17 part 2)
 3. Warehouse Woes         (day 15 part 2)
 4.
 5.
 
 Most difficult problems:
 1. Chronospatial Computer (day 17 part 2)
-2.
+2. Warehouse Woes         (day 15 part 2)
 3.
 4.
 5.
