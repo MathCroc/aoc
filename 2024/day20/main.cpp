@@ -197,6 +197,7 @@ std::string runSolution1(std::ifstream& ifs)
         queue = std::move(next);
         --stepsLeft;
     }
+
     return std::to_string(count);
 }
 
