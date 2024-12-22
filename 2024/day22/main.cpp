@@ -42,67 +42,40 @@ uint64_t nextSecret(uint64_t v)
     return v;
 }
 
-using Bananas = std::unordered_map<uint64_t, uint64_t>;
-using Seq = std::array<int, 4>;
-
-[[maybe_unused]] uint64_t hash(Seq s)
-{
-    uint64_t h = s[0];
-    for (int i = 1; i < 4; ++i)
-    {
-        h <<= 16;
-        h |= s[i] & 0xFFFF;
-    }
-    return h;
-}
-
-constexpr int dim = 37;
+constexpr int dim = 19;
 constexpr int totDim = dim * dim * dim * dim;
 
-int toIndex(uint64_t h)
+using Bananas = std::array<int, totDim>;
+
+// index is a base-19 number
+constexpr int nextIndex(int index, int diff)
 {
-    int index = 0;
-    int mult = 1;
-    for (int i = 0; i < 4; ++i)
-    {
-        int16_t v = h & 0xFFFF;
-        v += 18;
-        index += v * mult;
-        mult *= dim;
-        h >>= 16;
-    }
-    return index;
+    constexpr int mod = dim * dim * dim;
+    return (index % mod) * dim + (diff + 9);
 }
 
-using Ban = std::array<int, totDim>;
-
-void recordSequences(uint64_t v, Ban& bananas)
+void recordSequences(uint64_t v, Bananas& bananas)
 {
     std::vector<bool> encountered(totDim);
 
-    uint64_t h = 0;
+    int index = 0;
     int i = 0;
-    for (; i < 4; ++i)
+    for (; i < 3; ++i)
     {
         uint64_t next = nextSecret(v);
         int diff = (int)(next % 10) - (int)(v % 10);
 
-        h = (h << 16) | (diff & 0xFFFF);
+        index = nextIndex(index, diff);
         v = next;
     }
 
-    auto index = toIndex(h);
-    encountered[index] = true;
-    bananas[index] += v % 10;
     for (; i < 2000; ++i)
     {
         uint64_t next = nextSecret(v);
         int diff = (int)(next % 10) - (int)(v % 10);
 
-        h = (h << 16) | (diff & 0xFFFF);
+        index = nextIndex(index, diff);
         v = next;
-
-        index = toIndex(h);
 
         if (encountered[index])
             continue;
@@ -131,19 +104,13 @@ std::string runSolution1(std::ifstream& ifs)
 std::string runSolution2(std::ifstream& ifs)
 {
     auto secrets = parse(ifs);
-    Ban bananas{};
+    Bananas bananas{};
     for (auto v : secrets)
     {
         recordSequences(v, bananas);
     }
 
-    int max = 0;
-    for (auto count : bananas)
-    {
-        max = std::max(max, count);
-    }
-
-    return std::to_string(max);
+    return std::to_string(*std::max_element(bananas.begin(), bananas.end()));
 }
 
 } // namespace
