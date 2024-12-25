@@ -45,22 +45,22 @@ Problem   | Difficulty    | Rating    | Runtime (ms)
 22.1      | *             | **        | 2
 22.2      | **            | ***       | 18
 23.1      |               |           | 0 (with map -> vector)
-23.2      |               |           |
-24.1      |               |           |
-24.2      |               |           |
-25.1      |               |           |
+23.2      |               |           | 15000!!!
+24.1      | ***           | ***       | 0
+24.2      | *****         | *****     | N/A
+25.1      | *             | **        | 0
 
 
 Best problems:
-1. Restroom Redoubt       (day 14 part 2)
-2. Chronospatial Computer (day 17 part 2)
-3. Keypad Conundrum       (day 21 part 2)
-4. Warehouse Woes         (day 15 part 2)
-5. Race Condition         (day 20 part 2)
+1. Crossed Wires          (day 24 part 2)
+2. Restroom Redoubt       (day 14 part 2)
+3. Chronospatial Computer (day 17 part 2)
+4. Keypad Conundrum       (day 21 part 2)
+5. Warehouse Woes         (day 15 part 2)
 
 Most difficult problems:
-1. Keypad Conundrum       (day 21 part 2)
-2. Chronospatial Computer (day 17 part 2)
-3. Warehouse Woes         (day 15 part 2)
-4. Garden Groups          (day 12 part 2)
-5. Restroom Redoubt       (day 14 part 2)
+1. Crossed Wires          (day 24 part 2)
+2. Keypad Conundrum       (day 21 part 2)
+3. Chronospatial Computer (day 17 part 2)
+4. Warehouse Woes         (day 15 part 2)
+5. Garden Groups          (day 12 part 2)
