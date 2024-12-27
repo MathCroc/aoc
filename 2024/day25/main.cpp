@@ -55,11 +55,6 @@ std::string runSolution1(std::ifstream& ifs)
 {
     const auto vals = parse(ifs);
 
-    // std::bitset<40> a(vals[1]);
-    // std::bitset<40> b(vals[4]);
-    // std::bitset<40> c(vals[1] & vals[4]);
-    // std::cout << a << " " << b << " " << b << std::endl;
-
     size_t count = 0;
     for (size_t i = 0; i < vals.size(); ++i)
     {

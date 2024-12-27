@@ -124,6 +124,7 @@ bool makeAvailable(Wires& wires, const std::string& wireId)
         throw std::runtime_error("something went wrong");
     }
 
+    w.op = 0;
     return true;
 }
 
@@ -284,31 +285,10 @@ std::string runSolution1(std::ifstream& ifs)
     }
 }
 
-[[maybe_unused]] uint64_t failFastCompute(Wires wires)
-{
-    uint64_t value = 0;
-    for (size_t bit = 0; bit < 64; ++bit)
-    {
-        auto wireId = getWireId('z', bit);
-        auto wireIt = wires.find(wireId);
-        if (wireIt == wires.end())
-            break;
-
-        std::unordered_set<std::string> visited;
-        if (makeAvailableSafe(wires, wireId, visited))
-        {
-            value |= (uint64_t)wireIt->second.output << bit;
-        }
-        else
-        {
-            break;
-        }
-    }
-
-    return value;
-}
-
-[[maybe_unused]] std::string expand(const Wires& wires, const std::string& wireId)
+// Same as expand, but handles cyclic dependencies gracefully
+[[maybe_unused]] std::string expandSafe(const Wires& wires,
+                                        const std::string& wireId,
+                                        std::unordered_set<std::string>& visited)
 {
     auto wireIt = wires.find(wireId);
     if (wireIt == wires.end())
@@ -318,8 +298,17 @@ std::string runSolution1(std::ifstream& ifs)
     if (w.op == 0)
         return wireIt->first;
 
-    auto a = expand(wires, w.inputs[0]);
-    auto b = expand(wires, w.inputs[1]);
+    if (visited.find(wireId) != visited.end())
+        return "";
+
+    visited.insert(wireId);
+
+    auto a = expandSafe(wires, w.inputs[0], visited);
+    auto b = expandSafe(wires, w.inputs[1], visited);
+    if (b < a)
+    {
+        std::swap(a, b);
+    }
 
     std::string op;
     if (w.op == 1)
@@ -342,7 +331,48 @@ std::string runSolution1(std::ifstream& ifs)
     return "(" + a + op + b + ")";
 }
 
-std::string expand2(Wires& wires, const std::string& wireId)
+// Computes the expanded form of the wire without making it available.
+// - This version cannot handle cyclic dependencies
+[[maybe_unused]] std::string expand(const Wires& wires, const std::string& wireId)
+{
+    auto wireIt = wires.find(wireId);
+    if (wireIt == wires.end())
+        return "";
+
+    auto& w = wireIt->second;
+    if (w.op == 0)
+        return wireIt->first;
+
+    auto a = expand(wires, w.inputs[0]);
+    auto b = expand(wires, w.inputs[1]);
+    if (b < a)
+    {
+        std::swap(a, b);
+    }
+
+    std::string op;
+    if (w.op == 1)
+    {
+        op = " & ";
+    }
+    else if (w.op == 2)
+    {
+        op = " | ";
+    }
+    else if (w.op == 3)
+    {
+        op = " ^ ";
+    }
+    else
+    {
+        throw std::runtime_error("Wrong op code");
+    }
+
+    return "(" + a + op + b + ")";
+}
+
+// Computes the expanded form for the given wire and makes the wire "available"
+[[maybe_unused]] std::string expand2(Wires& wires, const std::string& wireId)
 {
     auto wireIt = wires.find(wireId);
     if (wireIt == wires.end())
@@ -382,6 +412,23 @@ std::string expand2(Wires& wires, const std::string& wireId)
     return "(" + a + op + b + ")";
 }
 
+[[maybe_unused]] void getCandidates(const Wires& wires,
+                                    const std::string& wireId,
+                                    std::vector<std::string>& cands)
+{
+    auto wireIt = wires.find(wireId);
+    if (wireIt == wires.end())
+        return;
+
+    auto& w = wireIt->second;
+    if (w.op == 0)
+        return;
+
+    cands.push_back(wireId);
+    getCandidates(wires, w.inputs[0], cands);
+    getCandidates(wires, w.inputs[1], cands);
+}
+
 [[maybe_unused]] void swapWires(Wires& wires, std::string w0, std::string w1)
 {
     auto it0 = wires.find(w0);
@@ -392,185 +439,167 @@ std::string expand2(Wires& wires, const std::string& wireId)
     it1->second = wireTmp;
 }
 
-std::string runSolution2(std::ifstream& ifs)
-{
-    auto wires = parse(ifs);
-
-    // swapWires(wires, "grf", "wpq");
-    // swapWires(wires, "z18", "fvw");
-    // swapWires(wires, "nwq", "z36");
-    // swapWires(wires, "mdb", "z22");
-
-    for (size_t i = 0; i < 64; ++i)
-    {
-        auto wireId = getWireId('z', i);
-        auto str = expand2(wires, wireId);
-        if (str.empty())
-            continue;
-
-        std::cout << wireId << " = " << str << std::endl;
-    }
-
-    // std::random_device rd; // a seed source for the random number engine
-    // std::mt19937 gen(rd()); // mersenne_twister_engine seeded with rd()
-    // std::uniform_int_distribution<uint64_t> dist;
-
-    // for (int i = 0; i < 10; ++i)
-    // {
-    //     // uint64_t x = 1ull << i;
-    //     // uint64_t y = 1ull << i;
-
-    //     auto x = dist(gen);
-    //     auto y = dist(gen);
-    //     auto z = compute(wires, x, y);
-    //     auto err = (x + y) ^ z;
-
-    //     std::bitset<45> xBits(x);
-    //     std::bitset<45> yBits(y);
-    //     std::bitset<46> zBits(z);
-    //     std::bitset<46> errBits(err);
-    //     std::cout << xBits << " + " << yBits << " = " << zBits << " " << errBits << std::endl;
-    // }
-
-    return "todo";
-}
-
-[[maybe_unused]] bool ok(Wires& wires, size_t bit)
+[[maybe_unused]] bool ok(const std::string& expanded, size_t bit)
 {
     std::regex r;
     if (bit == 0)
     {
-        r = std::regex(R"(\(x00 ^ y00\))");
+        r = std::regex("\\(x00 \\^ y00\\)");
     }
     else if (bit == 1)
     {
-        r = std::regex(R"(\(y00 & x00\)\) ^ \(\(x01 ^ y01\))");
+        r = std::regex("\\(\\(x00 & y00\\) \\^ \\(x01 \\^ y01\\)\\)");
     }
     else
     {
         char buf[1024];
-        std::sprintf(buf,
-                     "\\(\\(\\([a-z]{3} & [a-z]{3}\\) | \\(x%02lu & y%02lu\\)\\) ^ \\(x%02lu ^ "
-                     "y%02lu\\)\\)",
-                     bit,
-                     bit,
-                     bit - 1,
-                     bit - 1);
+        std::sprintf(
+            buf,
+            "\\(\\(\\([a-z]{3} & [a-z]{3}\\) \\| \\(x%02lu & y%02lu\\)\\) \\^ \\(x%02lu \\^ "
+            "y%02lu\\)\\)",
+            bit - 1,
+            bit - 1,
+            bit,
+            bit);
         r = std::regex(buf);
     }
 
-    return false;
+    return std::regex_match(expanded, r);
 }
 
-// std::string runSolution2(std::ifstream& ifs)
-// {
-//     auto wires = parse(ifs);
+// Idea:
+// - Expand the computation for each z wire starting from lowest bit
+// - Check with regex whether the expanded form is properly addition-like
+// - If the check doesn't pass:
+//    - Generate candidate wires (they are all the non-available wires that impact the current z wire)
+//    - Try to swap one of the candidates with a wire that is not available
+//    - There must be at be a swap that makes the regex match pass
+std::string runSolution2(std::ifstream& ifs)
+{
+    auto wires = parse(ifs);
 
-//     std::vector<std::string> wireIds;
-//     for (auto [wireId, w] : wires)
-//     {
-//         (void)w;
-//         wireIds.push_back(wireId);
-//     }
+    std::vector<std::string> wireIds;
+    for (auto [wireId, w] : wires)
+    {
+        (void)w;
+        wireIds.push_back(wireId);
+    }
 
-//     std::set<std::string> swapped;
+    std::set<std::string> swapped;
+    for (size_t i = 0; i < 64; ++i)
+    {
+        if (swapped.size() >= 8)
+            break;
 
-//     // swapWires(wires, "grf", "wpq");
-//     // swapWires(wires, "z18", "fvw");
-//     // swapWires(wires, "nwq", "z36");
-//     // swapWires(wires, "mdb", "z22");
+        auto wireId = getWireId('z', i);
+        auto str = expand(wires, wireId);
+        if (str.empty())
+            break;
 
-//     // for (size_t i = 0; i < 64; ++i)
-//     // {
-//     //     auto wireId = getWireId('z', i);
-//     //     auto str = expand2(wires, wireId);
-//     //     if (str.empty())
-//     //         continue;
+        bool correct = ok(str, i);
+        if (correct)
+        {
+            makeAvailable(wires, wireId);
+            continue;
+        }
 
-//     //     std::cout << wireId << " = " << str << std::endl;
-//     // }
+        std::vector<std::string> cands;
+        getCandidates(wires, wireId, cands);
 
-//     std::random_device rd; // a seed source for the random number engine
-//     std::mt19937 gen(rd()); // mersenne_twister_engine seeded with rd()
-//     std::uniform_int_distribution<uint64_t> dist;
+        // std::cout << "Fixing bit " << i << std::endl;
+        bool found = false;
+        for (const auto& w0 : cands)
+        {
+            if (found)
+                break;
 
-//     int success = 0;
-//     while (success < 10)
-//     {
-//         auto x = dist(gen) & ((1ull << 45) - 1);
-//         auto y = dist(gen) & ((1ull << 45) - 1);
+            for (size_t swap = 0; swap < wireIds.size(); ++swap)
+            {
+                const auto& w1 = wireIds[swap];
+                if (w0 == w1)
+                    continue;
 
-//         load(wires, x, y);
-//         auto z = failFastCompute(wires);
-//         // auto z = compute(wires, x, y);
-//         auto err = (x + y) ^ z;
-//         if (err == 0)
-//         {
-//             ++success;
-//             continue;
-//         }
+                if (swapped.find(w1) != swapped.end())
+                    continue;
 
-//         success = 0;
+                if (wires.at(w1).op == 0)
+                    continue;
 
-//         // std::bitset<45> xBits(x);
-//         // std::bitset<45> yBits(y);
-//         // std::bitset<46> zBits(z);
-//         // std::bitset<46> errBits(err);
-//         // std::cout << xBits << " + " << yBits << " = " << zBits << " " << errBits << std::endl;
+                swapWires(wires, w0, w1);
+                std::unordered_set<std::string> visited;
+                auto fixed = expandSafe(wires, wireId, visited);
+                if (ok(fixed, i))
+                {
+                    swapped.insert(w0);
+                    swapped.insert(w1);
+                    // std::cout << "Swapped: " << w0 << " " << w1 << std::endl;
+                    found = true;
+                    break;
+                }
+                else
+                {
+                    swapWires(wires, w0, w1);
+                }
+            }
+        }
 
-//         auto errBit = __builtin_ctzll(err);
-//         std::cout << "Resolving bit: " << errBit << std::endl;
+        makeAvailable(wires, wireId);
+        // std::cout << correct << " " << wireId << " = " << str << std::endl;
+    }
 
-//         auto errors = __builtin_popcountll(err);
-//         std::cout << "Errors: " << errors << std::endl;
+    std::string result;
+    for (const auto& w : swapped)
+    {
+        result += w;
+        result.push_back(',');
+    }
 
-//         for (size_t i = 0; i < wireIds.size(); ++i)
-//         {
-//             const auto& w0 = wireIds[i];
-//             if (w0[0] == 'x' or w0[0] == 'y')
-//                 continue;
+    return result;
+}
 
-//             if (swapped.find(w0) != swapped.end())
-//                 continue;
+// Original solution: Manual inspection of expanded forms + some trial and error
+[[maybe_unused]] std::string origRunSolution2(std::ifstream& ifs)
+{
+    auto wires = parse(ifs);
 
-//             for (size_t j = i + 1; j < wireIds.size(); ++j)
-//             {
-//                 const auto& w1 = wireIds[j];
+    swapWires(wires, "grf", "wpq");
+    swapWires(wires, "z18", "fvw");
+    swapWires(wires, "nwq", "z36");
+    swapWires(wires, "mdb", "z22");
 
-//                 if (w1[0] == 'x' or w1[0] == 'y')
-//                     continue;
+    // // Use this loop to find potential wires to swap
+    // for (size_t i = 0; i < 64; ++i)
+    // {
+    //     auto wireId = getWireId('z', i);
+    //     auto str = expand2(wires, wireId);
+    //     if (str.empty())
+    //         continue;
 
-//                 if (swapped.find(w1) != swapped.end())
-//                     continue;
+    //     std::cout << wireId << " = " << str << std::endl;
+    // }
 
-//                 auto tmp = wires;
-//                 swapWires(tmp, w0, w1);
+    std::random_device rd; // a seed source for the random number engine
+    std::mt19937 gen(rd()); // mersenne_twister_engine seeded with rd()
+    std::uniform_int_distribution<uint64_t> dist;
 
-//                 auto newZ = failFastCompute(tmp);
-//                 auto newErr = (x + y) ^ newZ;
+    // Validate that with random inputs the addition works as expected
+    for (int i = 0; i < 10; ++i)
+    {
+        auto x = dist(gen) & ((1ull << 45) - 1);
+        auto y = dist(gen) & ((1ull << 45) - 1);
 
-//                 auto newErrors = __builtin_popcountll(newErr);
-//                 auto newErrBit = __builtin_ctzll(newErr);
-//                 if (err == 0 or (newErrBit > errBit and newErrors < errors))
-//                 {
-//                     std::cout << w0 << " " << w1 << " : " << errBit << " " << newErrBit << " : "
-//                               << errors << " " << newErrors << std::endl;
-//                     // throw 1;
-//                     // swapped.insert(w0);
-//                     // swapped.insert(w1);
-//                     // wires = std::move(tmp);
-//                     // j = wireIds.size();
-//                     // i = wireIds.size();
-//                     // break;
-//                 }
-//             }
-//         }
+        auto z = compute(wires, x, y);
+        auto err = (x + y) ^ z;
 
-//         throw 1;
-//     }
+        std::bitset<45> xBits(x);
+        std::bitset<45> yBits(y);
+        std::bitset<46> zBits(z);
+        std::bitset<46> errBits(err);
+        std::cout << xBits << " + " << yBits << " = " << zBits << " " << errBits << std::endl;
+    }
 
-//     return "todo";
-// }
+    return "todo";
+}
 
 } // namespace
 
