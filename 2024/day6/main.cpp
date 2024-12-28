@@ -57,9 +57,9 @@ Pos initPos(const Grid& grid)
     throw 1;
 }
 
-bool move(Pos& pos, Grid& grid)
+bool move(Pos& pos, Grid& grid, char mark = 'X')
 {
-    grid[pos.row][pos.col] = 'X';
+    grid[pos.row][pos.col] = mark;
     if (pos.row + pos.drow < 0 or pos.col + pos.dcol < 0 or
         pos.row + pos.drow >= (int)grid.size() or pos.col + pos.dcol >= (int)grid[pos.row].size())
         return false;
@@ -101,7 +101,7 @@ std::string runSolution1(std::ifstream& ifs)
     return std::to_string(count);
 }
 
-uint64_t hash(Pos p)
+[[maybe_unused]] uint64_t hash(Pos p)
 {
     uint64_t hash = 0;
     hash |= (uint64_t)p.row & ((1ull << 30) - 1);
@@ -114,55 +114,45 @@ uint64_t hash(Pos p)
     return hash;
 }
 
-// Optization todo:
-// - Candidate locations can be computed from 3 consecutive obstructions
-//   hit in the initial configuration
-// - New loop is created if there are no obstructions blocking in side of
-//   the loop rectangle
-//
-// - list all the corners (i.e., turning locations)
-// - list all the obstructions
 std::string runSolution2(std::ifstream& ifs)
 {
     auto grid = parse(ifs);
+    auto tested = grid;
     const Pos init = initPos(grid);
 
-    Pos tmp = init;
-    while (move(tmp, grid))
-    {
-    }
-
+    Pos cur = init;
     int count = 0;
-    for (int row = 0; row < (int)grid.size(); ++row)
+    while (move(cur, grid))
     {
-        for (int col = 0; col < (int)grid[row].size(); ++col)
+        int row = cur.row + cur.drow;
+        int col = cur.col + cur.dcol;
+        char tile = grid[row][col];
+        if (tile == '#' or tile == 'X' or tested[row][col] == '!')
+            continue;
+
+        grid[row][col] = '#';
+        auto p = cur;
+
+        std::unordered_set<uint64_t> visited;
+        visited.insert(hash(p));
+        while (move(p, grid, 'Y'))
         {
-            if (grid[row][col] != 'X' or (row == init.row and col == init.col))
-                continue;
-
-            auto p = init;
-            auto tmpGrid = grid;
-            tmpGrid[row][col] = '#';
-
-            std::unordered_set<uint64_t> visited;
-            visited.insert(hash(p));
-            while (move(p, tmpGrid))
+            uint64_t h = hash(p);
+            if (visited.find(h) != visited.end())
             {
-                uint64_t h = hash(p);
-                if (visited.find(h) != visited.end())
-                {
-                    ++count;
-                    break;
-                }
-
-                visited.insert(h);
+                ++count;
+                break;
             }
+
+            visited.insert(h);
         }
+
+        grid[row][col] = tile;
+        tested[row][col] = '!';
     }
 
     return std::to_string(count);
 }
-
 } // namespace
 
 int main(int argc, char** argv)
