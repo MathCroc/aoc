@@ -83,7 +83,12 @@ std::string runSolution1(std::ifstream& ifs)
     return std::to_string(count / 6);
 }
 
-std::string string(const std::unordered_set<int>& s)
+[[maybe_unused]] std::string toString(int v)
+{
+    return std::string{ char((v & 0xFF) + 'a'), char((v >> 8) + 'a') };
+}
+
+[[maybe_unused]] std::string string(const std::unordered_set<int>& s)
 {
     std::vector<int> tmp(s.begin(), s.end());
     std::sort(tmp.begin(), tmp.end());
@@ -97,8 +102,70 @@ std::string string(const std::unordered_set<int>& s)
     return str;
 }
 
-// Really slow and requires manually sorting the returned answer...
 std::string runSolution2(std::ifstream& ifs)
+{
+    const auto n = parse(ifs);
+
+    // Count on how many triangles each node is contained
+    std::unordered_map<int, int> triangles;
+    for (const auto& [start, neighbours] : n)
+    {
+        for (auto v0 : neighbours)
+        {
+            auto it0 = n.find(v0);
+            for (auto v1 : it0->second)
+            {
+                auto it1 = n.find(v1);
+                for (auto v2 : it1->second)
+                {
+                    if (v2 != start)
+                        continue;
+
+                    ++triangles[v0];
+                    ++triangles[v1];
+                    ++triangles[v2];
+                }
+            }
+        }
+    }
+
+    // With clique size 13 there must be 66 triangles for each node.
+    // This may not work with all the inputs, but it turned out to be sufficient with the given one.
+    // Generic solution could proceed as follows:
+    // 1. Find the maximum number of triangles T for one node
+    // 2. Solve the equation t = (n-1)*(n-2) / 2 <= T where n is the theoretical maximum clique size
+    // 3. Form a set S of all the nodes with triangle count >=t
+    // 4. Test all the subsets of S with size n if they are fully connected
+    // 5. If some subset passes, this is the maximum clique
+    // 6. If none passes, reduce n by one, adjust t accordingly and repeat from step 3
+    constexpr int triangleLimit = 66;
+
+    std::vector<std::string> nodes;
+    for (auto& [v, c] : triangles)
+    {
+        c /= 6;
+        if (c >= triangleLimit)
+        {
+            nodes.push_back(toString(v));
+            // std::cout << v << ": " << c << std::endl;
+        }
+    }
+
+    // Here we could test that the filtered nodes is indeed a clique, but this was already
+    // known by the previous solution so no need really...
+
+    std::sort(nodes.begin(), nodes.end());
+    std::string result;
+    for (const auto& s : nodes)
+    {
+        result += s + ',';
+    }
+
+    return result;
+}
+
+// Really slow and requires manually sorting the returned answer...
+[[maybe_unused]] std::string origRunSolution2(std::ifstream& ifs)
 {
     const auto n = parse(ifs);
 
