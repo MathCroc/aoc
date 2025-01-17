@@ -3,3 +3,10 @@ build/
 .vscode/*
 **/input*.txt
 **/test*.txt
+
+# For Rust
+target/
+debug/
+Cargo.lock
+**/*.rs.bk
+*.pdb
