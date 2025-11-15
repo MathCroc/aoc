@@ -52,6 +52,20 @@ def set_floor(i: int, floors: int, floor: int) -> int:
     return floors
 
 
+# More efficient hash function exploiting the symmetry 
+def hash(elev: int, floors: int) -> int:
+    mask = 0x0101010101010101
+
+    tmp = sorted([(floors >> i) & mask for i in range(7)])
+
+    h = 0
+    for i, v in enumerate(tmp):
+        h |= v << i
+
+    h |= 1 << (elev * 16 + 7)
+    return h
+
+
 def next_states(elevator: int, floors: int) -> Iterator[tuple[int, int]]:
     cur_orig = get_floor(elevator, floors)
     inds = indices_u16(cur_orig)
@@ -95,7 +109,7 @@ def solution(filename: str):
 
     steps = 0
     states = [(0, orig_floors)]
-    visited = set(states)
+    visited = set([hash(*states[0])])
     while len(states) > 0:
         next = []
         for elev, floors in states:
@@ -104,11 +118,12 @@ def solution(filename: str):
                 return
 
             for s in next_states(elev, floors):
-                if s in visited:
+                h = hash(*s)
+                if h in visited:
                     continue
 
                 next.append(s)
-                visited.add(s)
+                visited.add(h)
 
         states = next
         steps += 1
