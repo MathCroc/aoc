@@ -52,14 +52,14 @@ Problem   | Difficulty    | Rating
 
 
 Best problems:
-1.
+1. Day 11: Radioisotope Thermoelectric Generators 
 2.
 3.
 4.
 5.
 
 Most difficult problems:
-1.
+1. Day 11: Radioisotope Thermoelectric Generators
 2.
 3.
 4.

@@ -1,12 +1,12 @@
 import argparse
-import numpy as np
 import re
 from collections.abc import Iterator
 from itertools import combinations
+from functools import reduce
 
 
 def parse(filename: str) -> int:
-    floors: int = 0  # 64-bit value, 16 bits per floor (8 for chips, 8 for gens)
+    floors: int = 0  # 64-bit value, 16 bits per floor (8 highest for chips, 8 lowest for gens)
     mapping: dict[str, int] = {}
 
     with open(filename, "r") as f:
@@ -38,11 +38,7 @@ def target_reached(floors: int) -> bool:
 
 
 def indices_u16(mask: int) -> list[int]:
-    inds: list[int] = []
-    for i in range(16):
-        if (mask >> i) & 1:
-            inds.append(i)
-    return inds
+    return [i for i in range(16) if (mask >> i) & 1]
 
 
 def set_floor(i: int, floors: int, floor: int) -> int:
@@ -54,14 +50,17 @@ def set_floor(i: int, floors: int, floor: int) -> int:
 
 # More efficient hash function exploiting the symmetry 
 def hash(elev: int, floors: int) -> int:
+    # This extracts the state of a single gen-chip pair
     mask = 0x0101010101010101
 
+    # Because of symmetry, we don't need to care which pair is in which state, so
+    # we can normalize the state via sorting
     tmp = sorted([(floors >> i) & mask for i in range(7)])
 
-    h = 0
-    for i, v in enumerate(tmp):
-        h |= v << i
+    # Reconstruct the normalized state (floors bit mask)
+    h = tmp[0] | (tmp[1] << 1) | (tmp[2] << 2) | (tmp[3] << 3) | (tmp[4] << 4) | (tmp[5] << 5) | (tmp[6] << 6)
 
+    # Add elevator position (8th bit for each floor is clear before this, so this is safe)
     h |= 1 << (elev * 16 + 7)
     return h
 
@@ -78,8 +77,7 @@ def next_states(elevator: int, floors: int) -> Iterator[tuple[int, int]]:
         other_orig = get_floor(elev, floors)
 
         # 1 item
-        for a in combinations(inds, 1):
-            ind = a[0]
+        for ind in inds:
             cur_mod = cur_orig & ~(1 << ind)
             other_mod = other_orig | (1 << ind)
             if not allowed_floor(cur_mod) or not allowed_floor(other_mod):
