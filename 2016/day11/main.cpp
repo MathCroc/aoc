@@ -15,6 +15,14 @@
 
 namespace {
 
+//   0-7: floor 1 generators
+//  8-15: floor 1 chips
+// 16-23: floor 2 generators
+// 24-31: floor 2 chips
+// 32-39: floor 3 generators
+// 40-47: floor 3 chips
+// 48-55: floor 4 generators
+// 56-63: floor 4 chips
 uint64_t parse()
 {
     std::array<std::vector<int>, 4> chips{ { { 0, 1, 2, 3 }, { 5, 6 }, { 4 }, {} } };
@@ -72,6 +80,44 @@ size_t indices_u16(std::array<size_t, 16>& indices, uint64_t mask)
     return count;
 }
 
+void sort_pair(uint64_t& a, uint64_t& b)
+{
+    std::tie(a, b) = std::minmax(a, b);
+}
+
+// Optimal sorting network for 7 elements
+// Reference: https://bertdobbelaere.github.io/sorting_networks.html
+void network_sort(std::array<uint64_t, 7>& arr)
+{
+    // [(0,6),(2,3),(4,5)]
+    sort_pair(arr[0], arr[6]);
+    sort_pair(arr[2], arr[3]);
+    sort_pair(arr[4], arr[5]);
+
+    // [(0,2),(1,4),(3,6)]
+    sort_pair(arr[0], arr[2]);
+    sort_pair(arr[1], arr[4]);
+    sort_pair(arr[3], arr[6]);
+
+    // [(0,1),(2,5),(3,4)]
+    sort_pair(arr[0], arr[1]);
+    sort_pair(arr[2], arr[5]);
+    sort_pair(arr[3], arr[4]);
+
+    // [(1,2),(4,6)]
+    sort_pair(arr[1], arr[2]);
+    sort_pair(arr[4], arr[6]);
+
+    // [(2,3),(4,5)]
+    sort_pair(arr[2], arr[3]);
+    sort_pair(arr[4], arr[5]);
+
+    // [(1,2),(3,4),(5,6)]
+    sort_pair(arr[1], arr[2]);
+    sort_pair(arr[3], arr[4]);
+    sort_pair(arr[5], arr[6]);
+}
+
 uint64_t hash(int elev, uint64_t floors)
 {
     constexpr uint64_t mask = 0x0101010101010101ull;
@@ -81,7 +127,7 @@ uint64_t hash(int elev, uint64_t floors)
     {
         tmp[i] = (floors >> i) & mask;
     }
-    std::sort(tmp.begin(), tmp.end());
+    network_sort(tmp);
 
     uint64_t h = 0;
     for (size_t i = 0; i < 7; ++i)

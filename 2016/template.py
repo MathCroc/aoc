@@ -1,5 +1,6 @@
 import argparse
 import numpy as np
+import re
 
 
 def solution1(filename: str):

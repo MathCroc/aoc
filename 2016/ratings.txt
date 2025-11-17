@@ -22,8 +22,8 @@ Problem   | Difficulty    | Rating
 10.2      | *             | *
 11.1      | ***           | ****
 11.2      | ****          | ****
-12.1      |               |
-12.2      |               |
+12.1      | *             | **
+12.2      | *             | **
 13.1      |               |
 13.2      |               |
 14.1      |               |
@@ -52,7 +52,7 @@ Problem   | Difficulty    | Rating
 
 
 Best problems:
-1. Day 11: Radioisotope Thermoelectric Generators 
+1. Day 11: Radioisotope Thermoelectric Generators
 2.
 3.
 4.
