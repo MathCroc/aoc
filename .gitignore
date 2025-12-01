@@ -1,6 +1,7 @@
 build/
 *.o
 .vscode/*
+.vs/*
 **/input*.txt
 **/test*.txt
 
