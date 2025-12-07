@@ -10,10 +10,10 @@ Problem   | Difficulty    | Rating
  4.2      | *             | *          
  5.1      | *             | *          
  5.2      | *             | **          
- 6.1      |               |           
- 6.2      |               |           
- 7.1      |               |           
- 7.2      |               |           
+ 6.1      | *             | *         
+ 6.2      | *             | *         
+ 7.1      | *             | **          
+ 7.2      | ***           | ***       
  8.1      |               |           
  8.2      |               |           
  9.1      |               |           
@@ -27,7 +27,8 @@ Problem   | Difficulty    | Rating
 
 
 Best problems:
+1. Day 7: Laboratories
 
 
 Most difficult problems:
-
+1. Day 7: Laboratories
