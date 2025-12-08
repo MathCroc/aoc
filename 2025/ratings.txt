@@ -14,8 +14,8 @@ Problem   | Difficulty    | Rating
  6.2      | *             | *         
  7.1      | *             | **          
  7.2      | ***           | ***       
- 8.1      |               |           
- 8.2      |               |           
+ 8.1      | **            | **        
+ 8.2      | ***           | ***       
  9.1      |               |           
  9.2      |               |           
 10.1      |               |           
@@ -28,7 +28,9 @@ Problem   | Difficulty    | Rating
 
 Best problems:
 1. Day 7: Laboratories
+2. Day 8: Playground
 
 
 Most difficult problems:
-1. Day 7: Laboratories
+1. Day 8: Playground
+2. Day 7: Laboratories
