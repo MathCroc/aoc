@@ -18,8 +18,8 @@ Problem   | Difficulty    | Rating
  8.2      | ***           | ***       
  9.1      | *             | **        
  9.2      | ****          | ***       
-10.1      |               |           
-10.2      |               |           
+10.1      | **            | ***       
+10.2      | ****          | ****      
 11.1      |               |           
 11.2      |               |           
 12.1      |               |           
@@ -27,12 +27,14 @@ Problem   | Difficulty    | Rating
 
 
 Best problems:
-1. Day 7: Laboratories
-2. Day 8: Playground
-3. Day 9: Movie Theater
+1. Day 10: Factory
+2. Day 7: Laboratories
+3. Day 8: Playground
+4. Day 9: Movie Theater
 
 
 Most difficult problems:
-1. Day 9: Movie Theater
-2. Day 8: Playground
-3. Day 7: Laboratories
+1. Day 10: Factory
+2. Day 9: Movie Theater
+3. Day 8: Playground
+4. Day 7: Laboratories
